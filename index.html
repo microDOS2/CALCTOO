@@ -228,7 +228,7 @@
 <header>
   <div class="row">
     <div class="row" style="gap:8px">
-      <strong>KOWALKSI's KALCULATOR v5</strong>
+      <strong>KOWALKSI's KALCULATOR v6</strong>
       <span class="chip" id="fmt_demo">Money format…</span>
       <span class="chip status-chip" id="status">Ready</span>
     </div>
@@ -592,9 +592,12 @@
         <section>
             <h2>Inventory Management <span class="q" data-tip="inv_section">?</span></h2>
             <div id="inventory_alerts"></div>
-            <div class="row" style="justify-content: space-between;">
+            <div class="row" style="justify-content: space-between; align-items:center;">
                 <p class="muted" style="max-width: 60%;">Manage stock levels for your raw materials. Use the Sync button to automatically populate this list from your Setup tab. Stock levels are saved automatically.</p>
-                <button id="syncInventoryBtn" class="btn primary">Sync Inventory List</button>
+                <div class="row">
+                   <button id="replenishBtn" class="btn">Replenish All Stock</button>
+                   <button id="syncInventoryBtn" class="btn primary">Sync Inventory List</button>
+                </div>
             </div>
             <div class="scroller" style="max-height:600px; overflow:auto;">
                 <table id="inventory_tbl">
@@ -1467,11 +1470,61 @@ const ALL_COLUMNS = [
     { key: 'load', label: 'Load', tooltip: 'Load this scenario\'s inputs.'}
 ];
 
-const SCENARIO_TABLE_KEYS = ALL_COLUMNS.map(c => c.key).filter(k => k !== 'load');
+let SCENARIO_TABLE_KEYS = ALL_COLUMNS.map(c => c.key).filter(k => k !== 'load');
 
-function ensureFullCapture(){ CAPTURES['__full__'] = ALL_COLUMNS.map(c=>c.key) }
-function currentCaptureKeys(){ const sel=$('#capture_sel').value; return CAPTURES[sel]||ALL_COLUMNS.map(c=>c.key) }
-function drawScenarioTableHeaders(){ const head=$('#scenarios_head'); head.innerHTML=''; const tr=document.createElement('tr'); SCENARIO_TABLE_KEYS.forEach(key=>{ const colInfo = ALL_COLUMNS.find(c => c.key === key); const th=document.createElement('th'); th.textContent=colInfo ? colInfo.label : key; tr.appendChild(th) }); const th=document.createElement('th'); th.textContent='Load'; tr.appendChild(th); head.appendChild(tr) }
+function ensureFullCapture(){
+    const allKeys = new Set(ALL_COLUMNS.map(c => c.key));
+    Object.keys(INVENTORY).forEach(key => {
+        allKeys.add(`inv_${key.replace(/[^a-zA-Z0-9]/g, '_')}`);
+    });
+    CAPTURES['__full__'] = Array.from(allKeys);
+}
+
+function currentCaptureKeys(){
+    const sel=$('#capture_sel').value;
+    if (CAPTURES[sel]) return CAPTURES[sel];
+    
+    // Fallback to full capture if selection not found
+    ensureFullCapture();
+    return CAPTURES['__full__'];
+}
+
+function drawScenarioTableHeaders(){
+  const head=$('#scenarios_head');
+  head.innerHTML='';
+  const tr=document.createElement('tr');
+  const allSavedKeys = new Set(ALL_COLUMNS.map(c => c.key));
+  const scenarios = loadScenarios();
+  scenarios.forEach(row => {
+      Object.keys(row).forEach(key => {
+          if(key.startsWith('inv_')) {
+              allSavedKeys.add(key);
+          }
+      });
+  });
+
+  const currentKeys = currentCaptureKeys();
+  const keysToDraw = Array.from(allSavedKeys).filter(key => currentKeys.includes(key));
+  
+  SCENARIO_TABLE_KEYS = keysToDraw.filter(k => k !== 'load');
+  
+  SCENARIO_TABLE_KEYS.forEach(key=>{
+    const colInfo = ALL_COLUMNS.find(c => c.key === key);
+    let label = colInfo ? colInfo.label : key;
+    if (key.startsWith('inv_')) {
+        label = key.replace('inv_', '').replace(/_/g, ' ');
+    }
+    const th=document.createElement('th');
+    th.textContent = label;
+    tr.appendChild(th);
+  });
+  
+  const th=document.createElement('th');
+  th.textContent='Load';
+  tr.appendChild(th);
+  head.appendChild(tr);
+}
+
 function loadScenarios(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'[]') }catch(e){ return [] } }
 function saveScenarios(list){ localStorage.setItem(LS_KEY, JSON.stringify(list)) }
 function migrateOld(){ OLD_KEYS.forEach(k => localStorage.removeItem(k)); }
@@ -1559,6 +1612,12 @@ function scenarioFromCurrent(C){
   row.comm_perPack = commProjections.commPerPack;
   row.comm_perPill = commProjections.commPerPill;
   row.comm_breakdown = commBreakdown.map(r => `${r.name}: ${money(r.total)} (Bonus: ${money(r.bonus)}, Override: ${money(r.override)})`).join(' | ');
+  
+    // Add inventory data for display
+    Object.keys(INVENTORY).forEach(key => {
+        const cleanKey = `inv_${key.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        row[cleanKey] = INVENTORY[key].stock;
+    });
 
   // Inputs object for restoring state
   row.__inputs = {
@@ -1571,7 +1630,8 @@ function scenarioFromCurrent(C){
     monthlyVolumes: $$('#monthlyVolumePerSku .card').map(c => ({ sku: c.querySelector('label').textContent.replace('SKU: ', ''), qty: num(c.querySelector('.monthlyVolumeSku').value) })),
     includeShip: S.includeShip,
     shippingPerPack: S.shippingPerPack,
-    commissionState: window.getCommissionState ? window.getCommissionState() : null
+    commissionState: window.getCommissionState ? window.getCommissionState() : null,
+    inventory: JSON.parse(JSON.stringify(INVENTORY)) // Deep copy
   };
   return row;
 }
@@ -1584,7 +1644,11 @@ function drawScenarioRows(){
     const tr=document.createElement('tr');
     SCENARIO_TABLE_KEYS.forEach(key=>{
       const td=document.createElement('td');
-      td.textContent = r[key] ?? '—';
+      let value = r[key] ?? '—';
+      if (key.startsWith('inv_') && isFinite(value)) {
+          value = num(value).toLocaleString();
+      }
+      td.textContent = value;
       tr.appendChild(td)
     });
     const td=document.createElement('td');
@@ -1656,6 +1720,13 @@ function restoreScenario(inputs){
     window.restoreCommissionState(inputs.commissionState);
   }
 
+  // Restore Inventory
+  if (inputs.inventory) {
+      INVENTORY = inputs.inventory;
+      saveInventory();
+      renderInventoryTable();
+  }
+
   hasUnsavedChanges = false;
   updateSaveButtonState();
   render();
@@ -1665,12 +1736,14 @@ function onSaveScenario(){
     const row=scenarioFromCurrent(C); 
     const list=loadScenarios(); 
     list.unshift(row); 
-    saveScenarios(list); 
+    saveScenarios(list);
+    drawScenarioTableHeaders();
     drawScenarioRows();
     hasUnsavedChanges = false;
     updateSaveButtonState();
 }
 function toCSV(){ const list=loadScenarios(); if(!list.length){ alert('No scenarios saved.'); return } const keys=SCENARIO_TABLE_KEYS.filter(c=>c !== 'load'); const header=keys.map(k => (ALL_COLUMNS.find(c=>c.key===k) || {}).label).join(','); const rows=list.map(r=> keys.map(k=> (r[k]??'').toString().replace(/\"/g,'""')).map(x=>'"'+x+'"').join(',')); const csv=[header, ...rows].join('\n'); const blob=new Blob([csv], {type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='scenarios.csv'; a.click(); URL.revokeObjectURL(url) }
+
 // Capture modal
 const GROUPS = {
     'Meta': ['savedAt', 'label'],
@@ -1684,31 +1757,56 @@ const GROUPS = {
     'Purchase Order Analysis': ['po_totalQty', 'po_retailProfit', 'po_wholesaleProfit', 'po_distributorProfit', 'po_totalProfit', 'po_netImpact', 'po_avgCostPerPill', 'po_avgProfitPerPill'],
     'Commission Projections': ['comm_grandTotalPayout', 'comm_pctOfRev', 'comm_perPack', 'comm_perPill', 'comm_breakdown']
 };
+
 function openCaptureModal(){
-  wireTips(calc()); // Ensure tooltips are populated
+  wireTips(calc()); 
+  
+  const dynamicGroups = { ...GROUPS };
+  const inventoryKeys = Object.keys(INVENTORY).sort();
+  if (inventoryKeys.length > 0) {
+      dynamicGroups['Inventory Levels'] = inventoryKeys.map(key => `inv_${key.replace(/[^a-zA-Z0-9]/g, '_')}`);
+      inventoryKeys.forEach(key => {
+          const cleanKey = `inv_${key.replace(/[^a-zA-Z0-9]/g, '_')}`;
+          if (!ALL_COLUMNS.some(c => c.key === cleanKey)) {
+              ALL_COLUMNS.push({ key: cleanKey, label: key, tooltip: `Stock level for ${key}` });
+          }
+      });
+  }
+
   const host=$('#cols_groups');
   host.innerHTML='';
-  for(const [group,keys] of Object.entries(GROUPS)){
+  for(const [group,keys] of Object.entries(dynamicGroups)){
     const card=document.createElement('div');
     card.className='card';
-    const h=document.createElement('div');
-    h.innerHTML='<strong>'+group+'</strong>';
-    card.appendChild(h);
+    card.innerHTML=`<strong>${group}</strong>`;
     keys.forEach(k=>{
+      const id='col_'+k;
+      const colInfo = ALL_COLUMNS.find(x=>x.key===k) || {label: k.replace('inv_','').replace(/_/g, ' '), tooltip: ''};
       const c=document.createElement('div');
       c.className='row';
-      const id='col_'+k;
-      const colInfo = ALL_COLUMNS.find(x=>x.key===k) || {label: k, tooltip: ''};
-      c.innerHTML = `<label class="row" style="justify-content:flex-start" data-tip="col_tip_${k}"><input id="${id}" type="checkbox" checked> ${colInfo.label}</label>`;
+      c.innerHTML = `<label class="row" style="justify-content:flex-start" data-tip="col_tip_${k}"><input id="${id}" type="checkbox" data-key="${k}" checked> ${colInfo.label}</label>`;
       card.appendChild(c);
     });
     host.appendChild(card);
   }
+  
   $('#modal_content').style.display = 'flex';
   $('#confirmation_modal_content').style.display = 'none';
   $('#modal').style.display='flex';
 }
-function saveCapture(){ const name = ($('#cap_name').value||'').trim() || 'Custom capture'; const keys=[]; Object.values(GROUPS).flat().forEach(k=>{ if($('#col_'+k).checked) keys.push(k) }); CAPTURES[name]=keys; const opt=document.createElement('option'); opt.value=name; opt.textContent=name; $('#capture_sel').appendChild(opt); $('#capture_sel').value=name; $('#modal').style.display='none' }
+function saveCapture(){
+  const name = ($('#cap_name').value||'').trim() || 'Custom capture';
+  const keys = $$('#cols_groups input[type=checkbox]:checked').map(cb => cb.dataset.key);
+  CAPTURES[name]=keys;
+  const opt=document.createElement('option');
+  opt.value=name;
+  opt.textContent=name;
+  $('#capture_sel').appendChild(opt);
+  $('#capture_sel').value=name;
+  $('#modal').style.display='none';
+  drawScenarioTableHeaders();
+  drawScenarioRows();
+}
 // ===== START: Third Party Section Logic =====
 const thirdPartyData = {
     "Sales Company": [
@@ -2329,6 +2427,28 @@ function renderInventoryTable() {
     updateInventoryAlerts();
 }
 
+function replenishStock() {
+    showConfirmation("This will ADD the default stock amount to all current inventory items. Are you sure?", () => {
+        Object.keys(INVENTORY).forEach(key => {
+            const item = INVENTORY[key];
+            if (item.category === 'Ingredient') {
+                item.stock += 10000000000;
+            } else if (item.category === 'Packaging') {
+                item.stock += 1000000;
+            }
+        });
+        saveInventory();
+        renderInventoryTable();
+        render(); // Re-render everything to update dashboard
+        
+        const statusChip = $('#status');
+        statusChip.textContent = 'Inventory Replenished!';
+        statusChip.style.backgroundColor = 'lightblue';
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+    });
+}
+
+
 function updateInventoryAlerts() {
     const alertsContainer = $('#inventory_alerts');
     alertsContainer.innerHTML = '';
@@ -2479,6 +2599,7 @@ function wireInputs(){
     // Inventory buttons
     $('#syncInventoryBtn').onclick = syncInventoryList;
     $('#finalize_order_btn').onclick = finalizeOrder;
+    $('#replenishBtn').onclick = replenishStock;
 }
 // ===== Boot =====
 function boot(){
@@ -2495,7 +2616,7 @@ function boot(){
         packsPerShipBox: 1,
         mixR: 100,
         mixW: 0,
-        mixD: 0,
+        mixD: 0
     }));
     updateOrderComposition();
     updateMonthlyVolumeInputs();
@@ -3038,7 +3159,4 @@ boot();
 </script>
 </body>
 </html>
-
-
-
 
