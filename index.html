@@ -228,7 +228,7 @@
 <header>
   <div class="row">
     <div class="row" style="gap:8px">
-      <strong>KOWALKSI's KALCULATOR v3</strong>
+      <strong>KOWALKSI's KALCULATOR v4</strong>
       <span class="chip" id="fmt_demo">Money format…</span>
       <span class="chip status-chip" id="status">Ready</span>
     </div>
@@ -511,20 +511,56 @@
     </div>
 
     <div id="dashboard" class="tab-content">
-        <h2>Dashboard</h2>
-        <div class="dashboard-grid">
-            <div class="card"><div class="muted">Blended Revenue / Pack <span class="q" data-tip="brev">?</span></div><div id="dash_kpi_brev" class="big thin">$0</div></div>
-            <div class="card"><div class="muted">Blended Gross Profit / Pack <span class="q" data-tip="bgpp">?</span></div><div id="dash_kpi_bgpp" class="big thin">$0</div></div>
-            <div class="card"><div class="muted">Blended Operating Profit / Pack <span class="q" data-tip="bopp">?</span></div><div id="dash_kpi_bopp" class="big thin">$0</div></div>
+        <div class="row" style="justify-content: space-between; align-items: center;">
+            <h2>Dashboard</h2>
+            <div class="row">
+                <label for="dashboard_projection_select">View:</label>
+                <select id="dashboard_projection_select" class="w-220">
+                    <option value="order">Current Order</option>
+                    <option value="monthly">Projected Monthly</option>
+                    <option value="yearly">Projected Yearly</option>
+                </select>
+            </div>
+        </div>
+        <div id="dashboard_kpi_grid" class="dashboard-grid">
+            <div class="card"><div class="muted">Total Revenue</div><div id="dash_kpi_revenue" class="big thin">$0</div></div>
+            <div class="card"><div class="muted">Total Gross Profit</div><div id="dash_kpi_gp" class="big thin">$0</div></div>
+            <div class="card"><div class="muted">Total Operating Profit</div><div id="dash_kpi_op" class="big thin">$0</div></div>
+            <div class="card"><div class="muted">Total Commission Cost</div><div id="dash_kpi_commission" class="big thin">$0</div></div>
         </div>
         <div class="dashboard-grid">
             <div class="chart-container">
-                <h3>Cost of Goods Breakdown</h3>
+                <h3 id="cogs_chart_title">Cost Breakdown</h3>
                 <canvas id="cogsChart"></canvas>
             </div>
             <div class="chart-container">
                 <h3>Operating Profit by Channel</h3>
                 <canvas id="profitChart"></canvas>
+            </div>
+        </div>
+         <div class="dashboard-grid" style="grid-template-columns: 1fr;">
+            <div class="chart-container" style="max-height:none;">
+                <h3>SKU Profitability Breakdown</h3>
+                <div class="scroller" style="max-height:400px; overflow:auto;">
+                    <table id="sku_profit_tbl">
+                        <thead>
+                            <tr>
+                                <th>SKU</th>
+                                <th>Qty</th>
+                                <th>Revenue</th>
+                                <th>Gross Profit</th>
+                                <th>Operating Profit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sku_profit_body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="dashboard-grid">
+            <div class="chart-container">
+                <h3>Break-Even Units (Packs)</h3>
+                <canvas id="beChart"></canvas>
             </div>
         </div>
         <div class="wizard-nav"><button class="btn" data-nav="prev">&larr; Previous: Commissions</button><button class="btn" data-nav="next">Next: Inventory &rarr;</button></div>
@@ -581,6 +617,7 @@
 // ===== Chart Instances =====
 let cogsChartInstance = null;
 let profitChartInstance = null;
+let beChartInstance = null;
 
 // ===== Inventory Data =====
 let INVENTORY = {};
@@ -919,7 +956,7 @@ function calc(){
 
   const weightedRetailPrice = brev; // For backward compatibility in some tips maybe
   
-  LATEST_CALC = { S, ingPerPack: avgIngPerPack, packPerPack: avgPackPerPack, dispPerPack: avgDispPerPack, weightedShippingBoxCost: avgShipBoxPerPack, cogs, priceR: avgPriceR, priceW: avgPriceW, priceD: avgPriceD, gpR, gpW, gpD, gmR, gmW, gmD, ohPerPack, ohPerPackR, ohPerPackW, ohPerPackD, shipPerPack, opR, opW, opD, omR, omW, omD, brev, bgpp, bopp, bgmp, bomp, retailerProfit, distProfit, costPerMg, costPerGram, totalFixedCosts, be_units_R, be_units_W, be_units_D, be_units_B, be_rev_R, be_rev_W, be_rev_D, be_rev_B, ohTotal, totalPacks, totalPacksR, totalPacksW, totalPacksD, totalPills, weightedRetailPrice, weightedPillsPerPack, costPerPill, profitPerPillR, profitPerPillW, profitPerPillD, overheadPerPill, totalMonthlyVolume, thirdPartyTotal, totalRevenue };
+  LATEST_CALC = { S, ingPerPack: avgIngPerPack, packPerPack: avgPackPerPack, dispPerPack: avgDispPerPack, weightedShippingBoxCost: avgShipBoxPerPack, cogs, priceR: avgPriceR, priceW: avgPriceW, priceD: avgPriceD, gpR, gpW, gpD, gmR, gmW, gmD, ohPerPack, ohPerPackR, ohPerPackW, ohPerPackD, shipPerPack, opR, opW, opD, omR, omW, omD, brev, bgpp, bopp, bgmp, bomp, retailerProfit, distProfit, costPerMg, costPerGram, totalFixedCosts, be_units_R, be_units_W, be_units_D, be_units_B, be_rev_R, be_rev_W, be_rev_D, be_rev_B, ohTotal, totalPacks, totalPacksR, totalPacksW, totalPacksD, totalPills, weightedRetailPrice, weightedPillsPerPack, costPerPill, profitPerPillR, profitPerPillW, profitPerPillD, overheadPerPill, totalMonthlyVolume, thirdPartyTotal, totalRevenue, totalGp, totalOp };
   return LATEST_CALC;
 }
 function updateOrderComposition(){
@@ -1029,11 +1066,8 @@ function render(){
   $('#orderTotalDisplay2').value = money(C.totalRevenue);
   $('#orderTotalDisplay3').value = money(C.totalRevenue);
 
-  // Update Dashboard KPIs
-  $('#dash_kpi_brev').textContent = money3(C.brev);
-  $('#dash_kpi_bgpp').textContent = money3(C.bgpp);
-  $('#dash_kpi_bopp').textContent = money3(C.bopp);
-  updateDashboardCharts(C);
+  // Update Dashboard
+  updateDashboard(C);
 
 
   const formatRetailBE = (units, rev, pillsPerPack, packsPerDisplay) => {
@@ -1929,81 +1963,164 @@ function updateShareTotal() {
     totalEl.className = `percent-total ${total.toFixed(1) == 100.0 ? 'ok' : 'error'}`;
 }
 
-// ===== Dashboard Chart Logic =====
-function updateDashboardCharts(C) {
+// ===== Dashboard Logic =====
+function updateDashboard(C) {
+    const projection = $('#dashboard_projection_select').value;
+    let multiplier = 1;
+    let titleSuffix = ' (Current Order)';
+    
+    if (projection === 'monthly') {
+        multiplier = C.totalMonthlyVolume / (C.totalPacks || 1);
+        titleSuffix = ' (Projected Monthly)';
+    } else if (projection === 'yearly') {
+        multiplier = (C.totalMonthlyVolume / (C.totalPacks || 1)) * 12;
+        titleSuffix = ' (Projected Yearly)';
+    }
+
+    $('#dash_kpi_revenue').textContent = money(C.totalRevenue * multiplier);
+    $('#dash_kpi_gp').textContent = money(C.totalGp * multiplier);
+    $('#dash_kpi_op').textContent = money(C.totalOp * multiplier);
+    
+    const commPerOrder = (window.lastCommissionTotal || 0) / (num($('#ordersPerYear').value) || 1);
+    let totalCommission = commPerOrder;
+    if(projection === 'monthly') {
+        totalCommission = (commPerOrder * num($('#ordersPerYear').value)) / 12;
+    } else if (projection === 'yearly') {
+        totalCommission = commPerOrder * num($('#ordersPerYear').value);
+    }
+    $('#dash_kpi_commission').textContent = money(totalCommission);
+
+
+    $('#cogs_chart_title').textContent = `Cost Breakdown ${titleSuffix}`;
+    updateDashboardCharts(C, totalCommission, multiplier);
+    renderSkuProfitabilityTable(C, multiplier);
+}
+
+function updateDashboardCharts(C, totalCommission, multiplier) {
     // --- COGS Chart ---
     const cogsCtx = document.getElementById('cogsChart').getContext('2d');
-    if (cogsChartInstance) {
-        cogsChartInstance.destroy();
-    }
+    if (cogsChartInstance) cogsChartInstance.destroy();
+    
+    const commissionPerPack = C.totalPacks > 0 ? totalCommission / C.totalPacks : 0;
+
     cogsChartInstance = new Chart(cogsCtx, {
         type: 'pie',
         data: {
-            labels: ['Ingredients', 'Packaging', 'Display Box', 'Shipping Box'],
+            labels: ['Ingredients', 'Packaging', 'Display Box', 'Shipping Box', 'Commissions'],
             datasets: [{
-                label: 'Cost of Goods',
-                data: [C.ingPerPack, C.packPerPack, C.dispPerPack, C.weightedShippingBoxCost],
-                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e'],
+                data: [C.ingPerPack, C.packPerPack, C.dispPerPack, C.weightedShippingBoxCost, commissionPerPack],
+                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'],
                 hoverOffset: 4
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
+            responsive: true, maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'top' },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            if (context.parsed !== null) {
-                                label += money3(context.parsed);
-                            }
-                            return label;
-                        }
-                    }
-                }
+                tooltip: { callbacks: { label: (c) => `${c.label}: ${money3(c.raw)}` } }
             }
         }
     });
 
     // --- Profit Chart ---
     const profitCtx = document.getElementById('profitChart').getContext('2d');
-    if (profitChartInstance) {
-        profitChartInstance.destroy();
-    }
+    if (profitChartInstance) profitChartInstance.destroy();
     profitChartInstance = new Chart(profitCtx, {
         type: 'bar',
         data: {
             labels: ['Retail', 'Wholesale', 'Distributor'],
             datasets: [{
-                label: 'Operating Profit per Pack',
-                data: [C.opR, C.opW, C.opD],
+                label: 'Operating Profit',
+                data: [C.opR * C.totalPacksR * multiplier, C.opW * C.totalPacksW * multiplier, C.opD * C.totalPacksD * multiplier],
                 backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc'],
             }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: { beginAtZero: true }
-            },
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true } },
             plugins: {
                 legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return 'Profit: ' + money3(context.raw);
-                        }
-                    }
-                }
+                tooltip: { callbacks: { label: (c) => `Profit: ${money(c.raw)}` } }
+            }
+        }
+    });
+    
+    // --- Break-Even Chart ---
+    const beCtx = document.getElementById('beChart').getContext('2d');
+    if(beChartInstance) beChartInstance.destroy();
+    beChartInstance = new Chart(beCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Retail', 'Wholesale', 'Distributor', 'Blended'],
+            datasets: [{
+                label: 'Break-Even Units (Packs)',
+                data: [
+                    isFinite(C.be_units_R) ? C.be_units_R : 0, 
+                    isFinite(C.be_units_W) ? C.be_units_W : 0, 
+                    isFinite(C.be_units_D) ? C.be_units_D : 0, 
+                    isFinite(C.be_units_B) ? C.be_units_B : 0
+                ],
+                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e'],
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: { y: { beginAtZero: true } },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (c) => `${c.raw.toLocaleString()} packs` } }
             }
         }
     });
 }
+
+function renderSkuProfitabilityTable(C, multiplier) {
+    const tableBody = $('#sku_profit_body');
+    tableBody.innerHTML = '';
+    const { S } = C;
+
+    S.order.forEach(orderItem => {
+        const sku = S.skus.find(s => s.sku === orderItem.sku);
+        if (!sku || orderItem.qty <= 0) return;
+
+        const ingPerPack = S.ing.reduce((a, x) => a + (x.mg * sku.pills * x.usdmg), 0);
+        const cogsPerPack = ingPerPack + sku.innerPkgCost + sku.outerBoxCost + (sku.displayBoxCost / sku.packsPerDisplay) + (sku.shippingBoxCost / sku.packsPerShipBox);
+        
+        const packsR = orderItem.qty * (sku.mixR / 100);
+        const packsW = orderItem.qty * (sku.mixW / 100);
+        const packsD = orderItem.qty * (sku.mixD / 100);
+
+        const priceR = sku.retailPrice;
+        const priceW = priceR * (1 - S.wDisc / 100);
+        const priceD = priceW * (1 - S.dDisc / 100);
+
+        const skuRevenue = (packsR * priceR) + (packsW * priceW) + (packsD * priceD);
+        const skuGrossProfit = skuRevenue - (cogsPerPack * orderItem.qty);
+        
+        const ohPerPack = C.ohTotal / (C.totalMonthlyVolume || 1);
+        const ohR = S.ohR ? ohPerPack : 0;
+        const ohW = S.ohW ? ohPerPack : 0;
+        const ohD = S.ohD ? ohPerPack : 0;
+        const ship = S.includeShip ? S.shippingPerPack : 0;
+
+        const opR = (priceR - cogsPerPack - ohR - ship) * packsR;
+        const opW = (priceW - cogsPerPack - ohW) * packsW;
+        const opD = (priceD - cogsPerPack - ohD) * packsD;
+        const skuOperatingProfit = opR + opW + opD;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${sku.sku}</td>
+            <td>${(orderItem.qty * multiplier).toLocaleString()}</td>
+            <td>${money(skuRevenue * multiplier)}</td>
+            <td>${money(skuGrossProfit * multiplier)}</td>
+            <td>${money(skuOperatingProfit * multiplier)}</td>
+        `;
+        tableBody.appendChild(tr);
+    });
+}
+
+
 // ===== START: Inventory Logic =====
 
 function loadInventory() {
@@ -2030,7 +2147,7 @@ function syncInventoryList() {
     // Add ingredients
     S.ing.forEach(ing => {
         if (ing.name && !INVENTORY[ing.name]) {
-            INVENTORY[ing.name] = { category: 'Ingredient', unit: 'mg', stock: 0, reorder: 0 };
+            INVENTORY[ing.name] = { category: 'Ingredient', unit: 'mg', stock: 100000, reorder: 0 };
             updated = true;
         }
     });
@@ -2045,7 +2162,7 @@ function syncInventoryList() {
         ];
         componentNames.forEach(comp => {
             if (comp.cost > 0 && !INVENTORY[comp.name]) {
-                INVENTORY[comp.name] = { category: 'Packaging', unit: 'units', stock: 0, reorder: 0 };
+                INVENTORY[comp.name] = { category: 'Packaging', unit: 'units', stock: 10000, reorder: 0 };
                 updated = true;
             }
         });
@@ -2233,6 +2350,10 @@ function wireInputs(){
         }
 
         if (t.id === 'includeThirdParty' && $('#autoCalc').checked) {
+            render();
+        }
+        
+        if (t.id === 'dashboard_projection_select') {
             render();
         }
 
@@ -2820,4 +2941,5 @@ boot();
 </script>
 </body>
 </html>
+
 
