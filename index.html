@@ -22,18 +22,26 @@
     margin-bottom: 16px;
   }
   .tab-btn {
-    padding: 10px 16px;
+    padding: 12px 20px;
     cursor: pointer;
     border: none;
     background: none;
-    font-size: 14px;
-    font-weight: 500;
+    font-size: 16px;
+    font-weight: 700;
     border-bottom: 3px solid transparent;
     color: GrayText;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+  }
+  .tab-btn:not(.active):hover {
+    background-color: color-mix(in srgb, Field 95%, CanvasText 5%);
+    color: CanvasText;
   }
   .tab-btn.active {
     color: AccentColor;
     border-bottom-color: AccentColor;
+    background-color: Field;
   }
   .tab-content { display: none; }
   .tab-content.active { display: block; }
@@ -179,12 +187,48 @@
     max-height: 400px;
   }
 
+  /* --- Inventory Styles --- */
+    #inventory_alerts .alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin-bottom: 12px;
+        font-weight: 500;
+    }
+    #inventory_alerts .alert.low-stock {
+        background-color: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeeba;
+    }
+    @media (prefers-color-scheme: dark) {
+        #inventory_alerts .alert.low-stock {
+            background-color: #533f03;
+            color: #ffda77;
+            border-color: #6d5404;
+        }
+    }
+    #inventory_tbl .status-cell {
+        padding: 4px 8px;
+        border-radius: 999px;
+        color: white !important;
+        font-size: 12px;
+        text-align: center;
+        font-weight: bold;
+        text-transform: uppercase;
+        display: inline-block;
+    }
+    #inventory_tbl .status-ok { background-color: #1cc88a; }
+    #inventory_tbl .status-low { background-color: #f6c23e; }
+    #inventory_tbl .status-out { background-color: #e74a3b; }
+    #inventory_tbl input { width: 120px; }
+    #inventory_tbl td { vertical-align: middle; }
+
+
 </style>
 </head><body>
 <header>
   <div class="row">
     <div class="row" style="gap:8px">
-      <strong>KOWALKSI's KALCULATOR v2</strong>
+      <strong>KOWALKSI's KALCULATOR v3</strong>
       <span class="chip" id="fmt_demo">Money format…</span>
       <span class="chip status-chip" id="status">Ready</span>
     </div>
@@ -202,6 +246,7 @@
   <button class="tab-btn" data-tab="financials">2. Financials</button>
   <button class="tab-btn" data-tab="commissions">3. Commissions & Scenarios</button>
   <button class="tab-btn" data-tab="dashboard">4. Dashboard</button>
+  <button class="tab-btn" data-tab="inventory">5. Inventory</button>
 </div>
 
 <div class="wrap">
@@ -224,7 +269,10 @@
                     <div><label>Order total $ Amount</label><input id="orderTotalDisplay1" type="text" readonly></div>
                 </div>
                 <div id="orderComposition"></div>
-                <div class="row"><button class="btn" id="calc_order">Calculate Order</button></div>
+                <div class="row">
+                    <button class="btn" id="calc_order">Calculate Order</button>
+                    <button class="btn primary" id="finalize_order_btn">Calculate & Finalize Order</button>
+                </div>
             </section>
             <section style="grid-column: 1 / -1;">
                 <h2>Ingredients <span class="q" data-tip="ingredients">?</span></h2>
@@ -479,7 +527,36 @@
                 <canvas id="profitChart"></canvas>
             </div>
         </div>
-        <div class="wizard-nav"><button class="btn" data-nav="prev">&larr; Previous: Commissions</button></div>
+        <div class="wizard-nav"><button class="btn" data-nav="prev">&larr; Previous: Commissions</button><button class="btn" data-nav="next">Next: Inventory &rarr;</button></div>
+    </div>
+
+    <div id="inventory" class="tab-content">
+        <section>
+            <h2>Inventory Management <span class="q" data-tip="inv_section">?</span></h2>
+            <div id="inventory_alerts"></div>
+            <div class="row" style="justify-content: space-between;">
+                <p class="muted" style="max-width: 60%;">Manage stock levels for your raw materials. Use the Sync button to automatically populate this list from your Setup tab. Stock levels are saved automatically.</p>
+                <button id="syncInventoryBtn" class="btn primary">Sync Inventory List</button>
+            </div>
+            <div class="scroller" style="max-height:600px; overflow:auto;">
+                <table id="inventory_tbl">
+                    <thead>
+                        <tr>
+                            <th>Item Name</th>
+                            <th>Category</th>
+                            <th>Current Stock</th>
+                            <th>Unit</th>
+                            <th>Reorder Point</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory_body">
+                        <!-- Rows will be generated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <div class="wizard-nav"><button class="btn" data-nav="prev">&larr; Previous: Dashboard</button></div>
     </div>
 </div>
 <div id="tip" class="tip"></div>
@@ -505,6 +582,11 @@
 let cogsChartInstance = null;
 let profitChartInstance = null;
 
+// ===== Inventory Data =====
+let INVENTORY = {};
+const INV_LS_KEY = 'kowalski_inventory_v1';
+
+
 // ===== Utilities =====
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
@@ -515,7 +597,7 @@ function money3(n){ const x = Number(n||0); const s = Math.abs(x).toFixed(3); le
 (function(){ const demo=[12,12.5,12.345,12.340,0].map(money3).join(' · '); $('#fmt_demo').textContent='Formatter: '+demo })();
 
 // ===== Tab / Wizard Navigation =====
-const tabs = ['setup', 'financials', 'commissions', 'dashboard'];
+const tabs = ['setup', 'financials', 'commissions', 'dashboard', 'inventory'];
 function switchTab(targetTab) {
     $$('.tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === targetTab);
@@ -696,7 +778,7 @@ function getState(){
   S.dDisc = num($('#dDisc').value);
   S.ohR = $('#ohR').checked; S.ohW = $('#ohW').checked; S.ohD = $('#ohD').checked;
   S.monthlyVolume = $$('#monthlyVolumePerSku .monthlyVolumeSku').reduce((total, input) => total + num(input.value), 0);
-  S.ing = $$('#ingredients .row').map(r=>({ mg:num(r.querySelector('.ingMg').value), usdmg:num(r.querySelector('.ingUsdMg').value) }));
+  S.ing = $$('#ingredients .row').map(r=>({name: r.querySelector('.ingName').value.trim(), mg:num(r.querySelector('.ingMg').value), usdmg:num(r.querySelector('.ingUsdMg').value) }));
   S.oh = $$('#oh_rows .row').map(r=> ({ name: r.querySelector('.ohName').value, cost: num(r.querySelector('.ohCost').value) }));
   S.includeThirdParty = $('#includeThirdParty').checked;
   return S;
@@ -1150,7 +1232,8 @@ function wireTips(C){
         return `This shows how much this single order contributes to covering the fixed monthly costs.<br><b>${money(poData.grandTotals.totalProfit)}</b> (Blended Gross Profit) - <b>${money(C.ohTotal)}</b> (Monthly Overhead) = <b>${money(poData.grandTotals.totalProfit - C.ohTotal)}</b>`;
     }},
     po_apply_commission_tip: {title: 'Apply Commission', body:()=> 'Check this to subtract the total calculated sales commission (for the selected period) from the "Total Gross Profit from Order" calculation. This allows you to see profit after commissions are paid.'},
-    
+    inv_section: {title: 'Inventory Management', body:()=>'Track your raw materials. Click "Sync Inventory List" to pull in all ingredients and packaging components from the Setup tab. Stock levels are saved locally in your browser.'},
+
     // New Commission Tooltips
     comm_period_view: {title: 'Projection Period View', body:()=> 'Select the time frame for the commission projection (Daily, Weekly, etc.).'},
     comm_orders_per_year: {title: 'Orders Per Year', body:()=> 'Set the annual run rate for orders. Projections are scaled based on this number. E.g., for weekly orders, set this to 52.'},
@@ -1921,6 +2004,206 @@ function updateDashboardCharts(C) {
         }
     });
 }
+// ===== START: Inventory Logic =====
+
+function loadInventory() {
+    try {
+        INVENTORY = JSON.parse(localStorage.getItem(INV_LS_KEY) || '{}');
+    } catch (e) {
+        console.error("Could not load inventory from localStorage", e);
+        INVENTORY = {};
+    }
+}
+
+function saveInventory() {
+    try {
+        localStorage.setItem(INV_LS_KEY, JSON.stringify(INVENTORY));
+    } catch (e) {
+        console.error("Could not save inventory to localStorage", e);
+    }
+}
+
+function syncInventoryList() {
+    const S = getState();
+    let updated = false;
+
+    // Add ingredients
+    S.ing.forEach(ing => {
+        if (ing.name && !INVENTORY[ing.name]) {
+            INVENTORY[ing.name] = { category: 'Ingredient', unit: 'mg', stock: 0, reorder: 0 };
+            updated = true;
+        }
+    });
+
+    // Add packaging components
+    S.skus.forEach(sku => {
+        const componentNames = [
+            { name: `${sku.sku} Inner Pkg`, cost: sku.innerPkgCost },
+            { name: `${sku.sku} Outer Box`, cost: sku.outerBoxCost },
+            { name: `${sku.sku} Display Box`, cost: sku.displayBoxCost },
+            { name: `${sku.sku} Shipping Box`, cost: sku.shippingBoxCost }
+        ];
+        componentNames.forEach(comp => {
+            if (comp.cost > 0 && !INVENTORY[comp.name]) {
+                INVENTORY[comp.name] = { category: 'Packaging', unit: 'units', stock: 0, reorder: 0 };
+                updated = true;
+            }
+        });
+    });
+
+    if (updated) {
+        saveInventory();
+        renderInventoryTable();
+        const statusChip = $('#status');
+        statusChip.textContent = 'Inventory Synced!';
+        statusChip.style.backgroundColor = 'lightblue';
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+    } else {
+        const statusChip = $('#status');
+        statusChip.textContent = 'No new items to sync.';
+        statusChip.style.backgroundColor = '';
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+    }
+}
+
+function renderInventoryTable() {
+    const tableBody = $('#inventory_body');
+    tableBody.innerHTML = '';
+    const sortedKeys = Object.keys(INVENTORY).sort((a,b) => a.localeCompare(b));
+
+    if (sortedKeys.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px;">Your inventory is empty. Click "Sync Inventory List" to get started.</td></tr>`;
+        updateInventoryAlerts();
+        return;
+    }
+
+    sortedKeys.forEach(key => {
+        const item = INVENTORY[key];
+        const tr = document.createElement('tr');
+        
+        let statusClass = 'status-ok';
+        let statusText = 'OK';
+        if (item.stock <= 0) {
+            statusClass = 'status-out';
+            statusText = 'Out of Stock';
+        } else if (item.stock <= item.reorder) {
+            statusClass = 'status-low';
+            statusText = 'Low Stock';
+        }
+        tr.innerHTML = `
+            <td>${key}</td>
+            <td>${item.category}</td>
+            <td><input type="number" class="inv-stock" data-key="${key}" value="${item.stock}"></td>
+            <td>${item.unit}</td>
+            <td><input type="number" class="inv-reorder" data-key="${key}" value="${item.reorder}"></td>
+            <td><span class="status-cell ${statusClass}">${statusText}</span></td>
+        `;
+        tableBody.appendChild(tr);
+    });
+
+    // Add event listeners after rows are created
+    $$('#inventory_body input').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const key = e.target.dataset.key;
+            const field = e.target.classList.contains('inv-stock') ? 'stock' : 'reorder';
+            INVENTORY[key][field] = num(e.target.value);
+            saveInventory();
+            renderInventoryTable(); // Re-render to update status
+        });
+    });
+    
+    updateInventoryAlerts();
+}
+
+function updateInventoryAlerts() {
+    const alertsContainer = $('#inventory_alerts');
+    alertsContainer.innerHTML = '';
+    const lowStockItems = [];
+    Object.keys(INVENTORY).forEach(key => {
+        const item = INVENTORY[key];
+        if (item.stock > 0 && item.stock <= item.reorder) {
+            lowStockItems.push(key);
+        } else if (item.stock <= 0) {
+            lowStockItems.push(`${key} (Out of Stock)`);
+        }
+    });
+
+    if (lowStockItems.length > 0) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert low-stock';
+        alertDiv.innerHTML = `<strong>Low Stock Alert:</strong> The following items need reordering: ${lowStockItems.join(', ')}.`;
+        alertsContainer.appendChild(alertDiv);
+    }
+}
+
+function finalizeOrder() {
+    const C = calc();
+    if (C.totalPacks === 0) {
+        alert("Please add items to the Order Composition before finalizing.");
+        return;
+    }
+
+    showConfirmation("This will calculate the order and deduct the required raw materials from your inventory. This action cannot be undone. Are you sure you want to proceed?", () => {
+        const consumption = {};
+        
+        // Tally consumption
+        C.S.order.forEach(orderItem => {
+            const sku = C.S.skus.find(s => s.sku === orderItem.sku);
+            if (!sku || orderItem.qty <= 0) return;
+
+            // Packaging
+            if(sku.innerPkgCost > 0) {
+                const key = `${sku.sku} Inner Pkg`;
+                consumption[key] = (consumption[key] || 0) + orderItem.qty;
+            }
+            if(sku.outerBoxCost > 0) {
+                const key = `${sku.sku} Outer Box`;
+                consumption[key] = (consumption[key] || 0) + orderItem.qty;
+            }
+            if(sku.displayBoxCost > 0) {
+                 const key = `${sku.sku} Display Box`;
+                consumption[key] = (consumption[key] || 0) + (orderItem.qty / sku.packsPerDisplay);
+            }
+             if(sku.shippingBoxCost > 0) {
+                const key = `${sku.sku} Shipping Box`;
+                consumption[key] = (consumption[key] || 0) + (orderItem.qty / sku.packsPerShipBox);
+            }
+
+            // Ingredients
+            const totalPills = orderItem.qty * sku.pills;
+            C.S.ing.forEach(ing => {
+                if (ing.name && ing.mg > 0) {
+                    consumption[ing.name] = (consumption[ing.name] || 0) + (totalPills * ing.mg);
+                }
+            });
+        });
+        
+        // Deduct from inventory
+        let itemsNotFound = [];
+        Object.keys(consumption).forEach(key => {
+            if (INVENTORY[key]) {
+                INVENTORY[key].stock -= consumption[key];
+            } else {
+                itemsNotFound.push(key);
+            }
+        });
+
+        saveInventory();
+        renderInventoryTable();
+
+        const statusChip = $('#status');
+        statusChip.textContent = 'Order Finalized & Inventory Updated';
+        statusChip.style.backgroundColor = 'lightgreen';
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+
+        if (itemsNotFound.length > 0) {
+            alert(`Warning: The following items were consumed but not found in your inventory list. Please sync inventory and set their stock levels:\n\n${itemsNotFound.join('\n')}`);
+        }
+    });
+}
+
+// ===== END: Inventory Logic =====
+
 
 // ===== Events =====
 function wireInputs(){
@@ -1930,16 +2213,12 @@ function wireInputs(){
 
         const t = e.target;
 
-        if (t.classList.contains('pills')) {
+        if (t.classList.contains('pills') || t.classList.contains('ingName')) {
             const row = t.closest('.sku-card');
-            const skuInput = row.querySelector('.skuName');
-            const pillCount = num(t.value);
-            skuInput.value = `${pillCount}-pack`;
-
-            const retailPriceInput = row.querySelector('.retailPrice');
-            const pricingTiers = { '3': '21.95', '10': '57.50', '15': '82.50', '30': '157.50' };
-            if (pricingTiers[pillCount]) {
-                retailPriceInput.value = pricingTiers[pillCount];
+            if (row) {
+                 const skuInput = row.querySelector('.skuName');
+                const pillCount = num(row.querySelector('.pills').value);
+                skuInput.value = `${pillCount}-pack`;
             }
             updateOrderComposition();
             updateMonthlyVolumeInputs();
@@ -1978,6 +2257,10 @@ function wireInputs(){
     $('#btn_choose_cols').onclick = openCaptureModal;
     $('#modal_close').onclick = ()=> $('#modal').style.display='none';
     $('#save_capture').onclick = saveCapture;
+    
+    // Inventory buttons
+    $('#syncInventoryBtn').onclick = syncInventoryList;
+    $('#finalize_order_btn').onclick = finalizeOrder;
 }
 // ===== Boot =====
 function boot(){
@@ -2029,6 +2312,11 @@ function boot(){
     calculateThirdPartyCosts();
 
     wirePOEvents();
+    
+    // Inventory boot
+    loadInventory();
+    renderInventoryTable();
+    
     render();
 }
 boot();
