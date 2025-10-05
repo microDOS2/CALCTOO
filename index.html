@@ -206,7 +206,7 @@
             border-color: #6d5404;
         }
     }
-    #inventory_tbl .status-cell {
+    .status-cell {
         padding: 4px 8px;
         border-radius: 999px;
         color: white !important;
@@ -216,9 +216,9 @@
         text-transform: uppercase;
         display: inline-block;
     }
-    #inventory_tbl .status-ok { background-color: #1cc88a; }
-    #inventory_tbl .status-low { background-color: #f6c23e; }
-    #inventory_tbl .status-out { background-color: #e74a3b; }
+    .status-ok { background-color: #1cc88a; }
+    .status-low { background-color: #f6c23e; }
+    .status-out { background-color: #e74a3b; }
     #inventory_tbl input { width: 120px; }
     #inventory_tbl td { vertical-align: middle; }
 
@@ -228,7 +228,7 @@
 <header>
   <div class="row">
     <div class="row" style="gap:8px">
-      <strong>KOWALKSI's KALCULATOR v4</strong>
+      <strong>KOWALKSI's KALCULATOR v5</strong>
       <span class="chip" id="fmt_demo">Money format…</span>
       <span class="chip status-chip" id="status">Ready</span>
     </div>
@@ -562,6 +562,28 @@
                 <h3>Break-Even Units (Packs)</h3>
                 <canvas id="beChart"></canvas>
             </div>
+            <div class="chart-container">
+                <h3>Inventory Stock Levels</h3>
+                <canvas id="inventoryChart"></canvas>
+            </div>
+        </div>
+        <div class="dashboard-grid" style="grid-template-columns: 1fr;">
+           <div class="chart-container" style="max-height:none;">
+               <h3>Inventory Alerts (Low Stock)</h3>
+               <div class="scroller" style="max-height:400px; overflow:auto;">
+                   <table id="inventory_dashboard_tbl">
+                       <thead>
+                           <tr>
+                               <th>Item Name</th>
+                               <th>Category</th>
+                               <th>Current Stock</th>
+                               <th>Status</th>
+                           </tr>
+                       </thead>
+                       <tbody id="inventory_dashboard_body"></tbody>
+                   </table>
+               </div>
+           </div>
         </div>
         <div class="wizard-nav"><button class="btn" data-nav="prev">&larr; Previous: Commissions</button><button class="btn" data-nav="next">Next: Inventory &rarr;</button></div>
     </div>
@@ -618,6 +640,7 @@
 let cogsChartInstance = null;
 let profitChartInstance = null;
 let beChartInstance = null;
+let inventoryChartInstance = null;
 
 // ===== Inventory Data =====
 let INVENTORY = {};
@@ -1994,6 +2017,7 @@ function updateDashboard(C) {
     $('#cogs_chart_title').textContent = `Cost Breakdown ${titleSuffix}`;
     updateDashboardCharts(C, totalCommission, multiplier);
     renderSkuProfitabilityTable(C, multiplier);
+    renderInventoryDashboardTable();
 }
 
 function updateDashboardCharts(C, totalCommission, multiplier) {
@@ -2072,6 +2096,43 @@ function updateDashboardCharts(C, totalCommission, multiplier) {
             }
         }
     });
+    
+    // --- Inventory Chart ---
+    const invCtx = document.getElementById('inventoryChart').getContext('2d');
+    if (inventoryChartInstance) inventoryChartInstance.destroy();
+    
+    const inventoryLabels = Object.keys(INVENTORY).sort((a, b) => a.localeCompare(b));
+    const inventoryData = inventoryLabels.map(key => INVENTORY[key].stock);
+    const inventoryColors = inventoryLabels.map(key => {
+        const item = INVENTORY[key];
+        if (item.stock <= 0) return '#e74a3b'; // red
+        if (item.reorder > 0 && item.stock <= item.reorder) return '#f6c23e'; // yellow
+        return '#1cc88a'; // green
+    });
+
+    inventoryChartInstance = new Chart(invCtx, {
+        type: 'bar',
+        data: {
+            labels: inventoryLabels,
+            datasets: [{
+                label: 'Current Stock',
+                data: inventoryData,
+                backgroundColor: inventoryColors,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: { 
+                y: { beginAtZero: true },
+                x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 45 } }
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (c) => `Stock: ${c.raw.toLocaleString()}` } }
+            }
+        }
+    });
 }
 
 function renderSkuProfitabilityTable(C, multiplier) {
@@ -2111,10 +2172,46 @@ function renderSkuProfitabilityTable(C, multiplier) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td>${sku.sku}</td>
-            <td>${(orderItem.qty * multiplier).toLocaleString()}</td>
+            <td>${Math.round(orderItem.qty * multiplier).toLocaleString()}</td>
             <td>${money(skuRevenue * multiplier)}</td>
             <td>${money(skuGrossProfit * multiplier)}</td>
             <td>${money(skuOperatingProfit * multiplier)}</td>
+        `;
+        tableBody.appendChild(tr);
+    });
+}
+
+function renderInventoryDashboardTable() {
+    const tableBody = $('#inventory_dashboard_body');
+    tableBody.innerHTML = '';
+    const lowStockItems = Object.keys(INVENTORY)
+        .filter(key => {
+            const item = INVENTORY[key];
+            return item.stock <= 0 || (item.reorder > 0 && item.stock <= item.reorder);
+        })
+        .sort((a,b) => a.localeCompare(b));
+
+    if (lowStockItems.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px;">All items are well-stocked.</td></tr>`;
+        return;
+    }
+
+    lowStockItems.forEach(key => {
+        const item = INVENTORY[key];
+        const tr = document.createElement('tr');
+        
+        let statusClass = 'status-low';
+        let statusText = 'Low Stock';
+        if (item.stock <= 0) {
+            statusClass = 'status-out';
+            statusText = 'Out of Stock';
+        }
+
+        tr.innerHTML = `
+            <td>${key}</td>
+            <td>${item.category}</td>
+            <td>${item.stock.toLocaleString()} ${item.unit}</td>
+            <td><span class="status-cell ${statusClass}">${statusText}</span></td>
         `;
         tableBody.appendChild(tr);
     });
@@ -2147,7 +2244,7 @@ function syncInventoryList() {
     // Add ingredients
     S.ing.forEach(ing => {
         if (ing.name && !INVENTORY[ing.name]) {
-            INVENTORY[ing.name] = { category: 'Ingredient', unit: 'mg', stock: 100000, reorder: 0 };
+            INVENTORY[ing.name] = { category: 'Ingredient', unit: 'mg', stock: 10000000000, reorder: 100000 };
             updated = true;
         }
     });
@@ -2162,7 +2259,7 @@ function syncInventoryList() {
         ];
         componentNames.forEach(comp => {
             if (comp.cost > 0 && !INVENTORY[comp.name]) {
-                INVENTORY[comp.name] = { category: 'Packaging', unit: 'units', stock: 10000, reorder: 0 };
+                INVENTORY[comp.name] = { category: 'Packaging', unit: 'units', stock: 1000000, reorder: 2000 };
                 updated = true;
             }
         });
@@ -2203,7 +2300,7 @@ function renderInventoryTable() {
         if (item.stock <= 0) {
             statusClass = 'status-out';
             statusText = 'Out of Stock';
-        } else if (item.stock <= item.reorder) {
+        } else if (item.reorder > 0 && item.stock <= item.reorder) {
             statusClass = 'status-low';
             statusText = 'Low Stock';
         }
@@ -2235,20 +2332,19 @@ function renderInventoryTable() {
 function updateInventoryAlerts() {
     const alertsContainer = $('#inventory_alerts');
     alertsContainer.innerHTML = '';
-    const lowStockItems = [];
-    Object.keys(INVENTORY).forEach(key => {
+    const alertItems = Object.keys(INVENTORY).filter(key => {
         const item = INVENTORY[key];
-        if (item.stock > 0 && item.stock <= item.reorder) {
-            lowStockItems.push(key);
-        } else if (item.stock <= 0) {
-            lowStockItems.push(`${key} (Out of Stock)`);
-        }
+        return item.stock <= 0 || (item.reorder > 0 && item.stock <= item.reorder);
     });
 
-    if (lowStockItems.length > 0) {
+    if (alertItems.length > 0) {
         const alertDiv = document.createElement('div');
         alertDiv.className = 'alert low-stock';
-        alertDiv.innerHTML = `<strong>Low Stock Alert:</strong> The following items need reordering: ${lowStockItems.join(', ')}.`;
+        const itemMessages = alertItems.map(key => {
+                const item = INVENTORY[key];
+                return `${key}${item.stock <= 0 ? ' (Out of Stock)' : ''}`;
+        });
+        alertDiv.innerHTML = `<strong>Low Stock Alert:</strong> The following items need reordering: ${itemMessages.join(', ')}.`;
         alertsContainer.appendChild(alertDiv);
     }
 }
@@ -2256,7 +2352,7 @@ function updateInventoryAlerts() {
 function finalizeOrder() {
     const C = calc();
     if (C.totalPacks === 0) {
-        alert("Please add items to the Order Composition before finalizing.");
+        showConfirmation("Please add items to the Order Composition before finalizing.", ()=>{});
         return;
     }
 
@@ -2307,6 +2403,7 @@ function finalizeOrder() {
 
         saveInventory();
         renderInventoryTable();
+        render(); // re-render to update dashboard
 
         const statusChip = $('#status');
         statusChip.textContent = 'Order Finalized & Inventory Updated';
@@ -2314,7 +2411,7 @@ function finalizeOrder() {
         setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
 
         if (itemsNotFound.length > 0) {
-            alert(`Warning: The following items were consumed but not found in your inventory list. Please sync inventory and set their stock levels:\n\n${itemsNotFound.join('\n')}`);
+            showConfirmation(`Warning: The following items were consumed but not found in your inventory list. Please sync inventory and set their stock levels:\n\n${itemsNotFound.join('\n')}`, ()=>{});
         }
     });
 }
@@ -2941,5 +3038,7 @@ boot();
 </script>
 </body>
 </html>
+
+
 
 
