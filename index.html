@@ -523,23 +523,23 @@
             </div>
         </div>
         <div id="dashboard_kpi_grid" class="dashboard-grid">
-            <div class="card"><div class="muted">Total Revenue</div><div id="dash_kpi_revenue" class="big thin">$0</div></div>
-            <div class="card"><div class="muted">Total Gross Profit</div><div id="dash_kpi_gp" class="big thin">$0</div></div>
-            <div class="card"><div class="muted">Total Operating Profit</div><div id="dash_kpi_op" class="big thin">$0</div></div>
-            <div class="card"><div class="muted">Total Commission Cost</div><div id="dash_kpi_commission" class="big thin">$0</div></div>
+            <div class="card" data-tip="dash_rev"><div class="muted">Total Revenue</div><div id="dash_kpi_revenue" class="big thin">$0</div></div>
+            <div class="card" data-tip="dash_gp"><div class="muted">Total Gross Profit</div><div id="dash_kpi_gp" class="big thin">$0</div></div>
+            <div class="card" data-tip="dash_op"><div class="muted">Total Operating Profit</div><div id="dash_kpi_op" class="big thin">$0</div></div>
+            <div class="card" data-tip="dash_comm"><div class="muted">Total Commission Cost</div><div id="dash_kpi_commission" class="big thin">$0</div></div>
         </div>
         <div class="dashboard-grid">
-            <div class="chart-container">
+            <div class="chart-container" data-tip="dash_chart_cogs">
                 <h3 id="cogs_chart_title">Cost Breakdown</h3>
                 <canvas id="cogsChart"></canvas>
             </div>
-            <div class="chart-container">
+            <div class="chart-container" data-tip="dash_chart_profit">
                 <h3>Operating Profit by Channel</h3>
                 <canvas id="profitChart"></canvas>
             </div>
         </div>
          <div class="dashboard-grid" style="grid-template-columns: 1fr;">
-            <div class="chart-container" style="max-height:none;">
+            <div class="chart-container" style="max-height:none;" data-tip="dash_table_sku">
                 <h3>SKU Profitability Breakdown</h3>
                 <div class="scroller" style="max-height:400px; overflow:auto;">
                     <table id="sku_profit_tbl">
@@ -558,17 +558,17 @@
             </div>
         </div>
         <div class="dashboard-grid">
-            <div class="chart-container">
+            <div class="chart-container" data-tip="dash_chart_be">
                 <h3>Break-Even Units (Packs)</h3>
                 <canvas id="beChart"></canvas>
             </div>
-            <div class="chart-container">
+            <div class="chart-container" data-tip="dash_chart_inv">
                 <h3>Inventory Stock Levels</h3>
                 <canvas id="inventoryChart"></canvas>
             </div>
         </div>
         <div class="dashboard-grid" style="grid-template-columns: 1fr;">
-           <div class="chart-container" style="max-height:none;">
+           <div class="chart-container" style="max-height:none;" data-tip="dash_table_alerts">
                <h3>Inventory Alerts (Low Stock)</h3>
                <div class="scroller" style="max-height:400px; overflow:auto;">
                    <table id="inventory_dashboard_tbl">
@@ -595,9 +595,9 @@
             <div class="row" style="justify-content: space-between; align-items:center;">
                 <p class="muted" style="max-width: 60%;">Manage stock levels for your raw materials. Use the Sync button to automatically populate this list from your Setup tab. Stock levels are saved automatically.</p>
                 <div class="row">
-                   <button id="replenishBtn" class="btn">Replenish All Stock</button>
-                   <button id="syncInventoryBtn" class="btn primary">Sync Inventory List</button>
-                   <button id="deleteInventoryBtn" class="btn danger">Delete Inventory</button>
+                   <button id="replenishBtn" class="btn" data-tip="inv_replenish">Replenish All Stock</button>
+                   <button id="syncInventoryBtn" class="btn primary" data-tip="inv_sync">Sync Inventory List</button>
+                   <button id="deleteInventoryBtn" class="btn danger" data-tip="inv_delete">Delete Inventory</button>
                 </div>
             </div>
             <div class="scroller" style="max-height:600px; overflow:auto;">
@@ -1294,6 +1294,21 @@ function wireTips(C){
     }},
     po_apply_commission_tip: {title: 'Apply Commission', body:()=> 'Check this to subtract the total calculated sales commission (for the selected period) from the "Total Gross Profit from Order" calculation. This allows you to see profit after commissions are paid.'},
     inv_section: {title: 'Inventory Management', body:()=>'Track your raw materials. Click "Sync Inventory List" to pull in all ingredients and packaging components from the Setup tab. Stock levels are saved locally in your browser.'},
+    inv_replenish: {title: 'Replenish All Stock', body:()=> 'Adds the default stock amount to every item currently in your inventory. This is useful for quickly resetting stock levels for testing scenarios.'},
+    inv_sync: {title: 'Sync Inventory List', body:()=> 'Scans the "Ingredients" and "Product Specifications" in the Setup tab and adds any new items (ingredients, packaging) to the inventory list with default stock levels. It will not remove existing items.'},
+    inv_delete: {title: 'Delete Inventory', body:()=> 'Permanently deletes all items and stock levels from your inventory. This action cannot be undone.'},
+
+    // Dashboard Tooltips
+    dash_rev: {title: 'Total Revenue', body:()=> `The total projected revenue based on the selected period. This is the sum of revenue from all sales channels in your order composition.`},
+    dash_gp: {title: 'Total Gross Profit', body:()=> `Total Revenue minus the total Cost of Goods Sold (COGS). This is the profit before accounting for operating overhead or commissions.`},
+    dash_op: {title: 'Total Operating Profit', body:()=> `Total Gross Profit minus allocated operating overhead costs. This represents the profitability of the core business operations.`},
+    dash_comm: {title: 'Total Commission Cost', body:()=> `The total projected cost of sales commissions for the selected period, based on the hierarchy and settings in the Commissions tab.`},
+    dash_chart_cogs: {title: 'Cost Breakdown Chart', body:()=> `A pie chart showing the breakdown of the Cost of Goods Sold (COGS) per pack, plus the allocated commission cost per pack.`},
+    dash_chart_profit: {title: 'Operating Profit by Channel', body:()=> `A bar chart comparing the total operating profit generated by each sales channel (Retail, Wholesale, Distributor) for the selected period.`},
+    dash_table_sku: {title: 'SKU Profitability Table', body:()=> `A detailed breakdown of quantity, revenue, and profit for each individual SKU in your order composition, scaled for the selected period.`},
+    dash_chart_be: {title: 'Break-Even Units Chart', body:()=> `This bar chart shows the number of packs you need to sell in each channel (and blended across all channels) to cover your fixed costs.`},
+    dash_chart_inv: {title: 'Inventory Stock Levels Chart', body:()=> `A bar chart visualizing the current stock levels for every item in your inventory. Colors indicate status: green (OK), yellow (Low), and red (Out of Stock).`},
+    dash_table_alerts: {title: 'Inventory Alerts Table', body:()=> `This table lists only the inventory items that are currently low on stock or out of stock, based on the reorder points you've set.`},
 
     // New Commission Tooltips
     comm_period_view: {title: 'Projection Period View', body:()=> 'Select the time frame for the commission projection (Daily, Weekly, etc.).'},
@@ -3176,4 +3191,6 @@ boot();
 </script>
 </body>
 </html>
+
+
 
