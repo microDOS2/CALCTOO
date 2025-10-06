@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>KOWALKSI's KALCULATOR</title>
+<title>Kowalski's Calculator</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
   :root{ color-scheme: light dark }
@@ -228,7 +228,7 @@
 <header>
   <div class="row">
     <div class="row" style="gap:8px">
-      <strong>KOWALKSI's KALCULATOR v6</strong>
+      <strong>Kowalski's Calculator v6</strong>
       <span class="chip" id="fmt_demo">Money format…</span>
       <span class="chip status-chip" id="status">Ready</span>
     </div>
@@ -597,6 +597,7 @@
                 <div class="row">
                    <button id="replenishBtn" class="btn">Replenish All Stock</button>
                    <button id="syncInventoryBtn" class="btn primary">Sync Inventory List</button>
+                   <button id="deleteInventoryBtn" class="btn danger">Delete Inventory</button>
                 </div>
             </div>
             <div class="scroller" style="max-height:600px; overflow:auto;">
@@ -1884,7 +1885,7 @@ function calculateThirdPartyCosts(returnTotal = false) {
     }
     const weeklyCost = totalMonthlyCost / 4.33; // Average weeks in a month
     const dailyCost = totalMonthlyCost / 30.44; // Average days in a month
-    $('#tp_monthly_cost').textContent = money(totalMonthlyCost);
+    $('#tp_monthly_cost').textContent = money(weeklyCost);
     $('#tp_weekly_cost').textContent = money(weeklyCost);
     $('#tp_daily_cost').textContent = money(dailyCost);
 }
@@ -2448,6 +2449,20 @@ function replenishStock() {
     });
 }
 
+function deleteInventory() {
+    showConfirmation("Are you sure you want to permanently delete all inventory data? This action cannot be undone.", () => {
+        INVENTORY = {};
+        localStorage.removeItem(INV_LS_KEY);
+        renderInventoryTable();
+        render(); // Re-render everything to update dashboard charts
+
+        const statusChip = $('#status');
+        statusChip.textContent = 'Inventory Deleted!';
+        statusChip.style.backgroundColor = '#e74a3b'; // red
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+    });
+}
+
 
 function updateInventoryAlerts() {
     const alertsContainer = $('#inventory_alerts');
@@ -2586,10 +2601,11 @@ function wireInputs(){
     $('#recalcBtn').onclick = render;
     $('#btn_save').onclick = onSaveScenario;
     $('#btn_csv').onclick = toCSV;
-    $('#btn_clear').onclick = ()=>{ 
-        showConfirmation('Are you sure you want to clear all saved scenarios? This action cannot be undone.', () => {
-            localStorage.removeItem(LS_KEY); 
-            drawScenarioRows();
+    $('#btn_clear').onclick = () => {
+        showConfirmation('Are you sure you want to clear all saved scenarios AND reset all inputs? This action cannot be undone.', () => {
+            localStorage.removeItem(LS_KEY); // Clear saved scenarios
+            localStorage.removeItem(INV_LS_KEY); // Clear saved inventory
+            location.reload(); // Reload the page to reset all inputs
         });
     };
     $('#btn_choose_cols').onclick = openCaptureModal;
@@ -2600,6 +2616,7 @@ function wireInputs(){
     $('#syncInventoryBtn').onclick = syncInventoryList;
     $('#finalize_order_btn').onclick = finalizeOrder;
     $('#replenishBtn').onclick = replenishStock;
+    $('#deleteInventoryBtn').onclick = deleteInventory;
 }
 // ===== Boot =====
 function boot(){
@@ -2616,7 +2633,7 @@ function boot(){
         packsPerShipBox: 1,
         mixR: 100,
         mixW: 0,
-        mixD: 0
+        mixD: 0,
     }));
     updateOrderComposition();
     updateMonthlyVolumeInputs();
