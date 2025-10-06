@@ -4,16 +4,19 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Kowalski's Calculator</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{ color-scheme: light dark }
   *{ box-sizing:border-box }
   html,body{ height:100% }
+  /* Base styles from Calculator */
   body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Helvetica Neue,Arial; background:Canvas; color:CanvasText; line-height:1.45 }
   header{ position:sticky; top:0; z-index:10; padding:12px 16px; border-bottom:1px solid ButtonBorder; background:Canvas }
   header .row{ display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap }
   
-  /* --- Tab Navigation Styles --- */
+  /* --- Main Tab Navigation Styles --- */
   .tab-nav {
     display: flex;
     gap: 4px;
@@ -21,7 +24,7 @@
     padding: 0 16px;
     margin-bottom: 16px;
   }
-  .tab-btn {
+  .main-tab-btn {
     padding: 12px 20px;
     cursor: pointer;
     border: none;
@@ -34,11 +37,11 @@
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
   }
-  .tab-btn:not(.active):hover {
+  .main-tab-btn:not(.active):hover {
     background-color: color-mix(in srgb, Field 95%, CanvasText 5%);
     color: CanvasText;
   }
-  .tab-btn.active {
+  .main-tab-btn.active {
     color: AccentColor;
     border-bottom-color: AccentColor;
     background-color: Field;
@@ -46,6 +49,13 @@
   .tab-content { display: none; }
   .tab-content.active { display: block; }
   .wizard-nav { display: flex; justify-content: space-between; margin-top: 16px; }
+
+  /* Styles imported and adapted from Scenario Analysis */
+  .dashboard-body { background-color: #f1f5f9; font-family: 'Inter', sans-serif; }
+  .dash-tab-btn.active { border-color: #4f46e5; color: #4f46e5; background-color: #eef2ff; }
+  .chart-container { position: relative; width: 100%; height: 400px; max-height: 50vh; }
+  .dash-tab-content { display:block; }
+  .dash-tab-content.hidden { display:none; }
 
   .wrap{ max-width:1680px; margin:0 auto; padding:16px; }
   .grid-layout { display:grid; grid-template-columns: 1.35fr 1fr; gap:16px }
@@ -76,7 +86,7 @@
   .sku-card .mix-total { grid-area: mix-total; align-self: end; }
   label{ display:block; margin:0 0 6px; font-size:12px; color:GrayText }
   
-  /* --- Enhanced Input vs Output styling --- */
+  /* Enhanced Input vs Output styling */
   input:not([readonly]), select {
     background: Window;
     border: 1px solid ButtonBorder;
@@ -173,20 +183,6 @@
   #commission_visualizer li { margin: 4px 0; }
   #commission_visualizer a { cursor: pointer; text-decoration: underline; color: AccentColor; }
   
-  .dashboard-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 16px;
-  }
-  .chart-container {
-    padding: 16px;
-    background: Field;
-    border: 1px solid ButtonBorder;
-    border-radius: 14px;
-    position: relative;
-    max-height: 400px;
-  }
-
   /* --- Inventory Styles --- */
     #inventory_alerts .alert {
         padding: 12px;
@@ -222,13 +218,12 @@
     #inventory_tbl input { width: 120px; }
     #inventory_tbl td { vertical-align: middle; }
 
-
 </style>
 </head><body>
 <header>
   <div class="row">
     <div class="row" style="gap:8px">
-      <strong>Kowalski's Calculator v6</strong>
+      <strong>Kowalski's Calculator v7</strong>
       <span class="chip" id="fmt_demo">Money format…</span>
       <span class="chip status-chip" id="status">Ready</span>
     </div>
@@ -242,11 +237,11 @@
 </header>
 
 <div class="tab-nav">
-  <button class="tab-btn active" data-tab="setup">1. Setup</button>
-  <button class="tab-btn" data-tab="financials">2. Financials</button>
-  <button class="tab-btn" data-tab="commissions">3. Commissions & Scenarios</button>
-  <button class="tab-btn" data-tab="dashboard">4. Dashboard</button>
-  <button class="tab-btn" data-tab="inventory">5. Inventory</button>
+  <button class="main-tab-btn active" data-tab="setup">1. Setup</button>
+  <button class="main-tab-btn" data-tab="financials">2. Financials</button>
+  <button class="main-tab-btn" data-tab="commissions">3. Commissions & Scenarios</button>
+  <button class="main-tab-btn" data-tab="dashboard">4. Dashboard</button>
+  <button class="main-tab-btn" data-tab="inventory">5. Inventory</button>
 </div>
 
 <div class="wrap">
@@ -510,83 +505,85 @@
         <div class="wizard-nav"><button class="btn" data-nav="prev">&larr; Previous: Financials</button><button class="btn" data-nav="next">Next: Dashboard &rarr;</button></div>
     </div>
 
+    <!-- NEW DASHBOARD CONTENT -->
     <div id="dashboard" class="tab-content">
-        <div class="row" style="justify-content: space-between; align-items: center;">
-            <h2>Dashboard</h2>
-            <div class="row">
-                <label for="dashboard_projection_select">View:</label>
-                <select id="dashboard_projection_select" class="w-220">
-                    <option value="order">Current Order</option>
-                    <option value="monthly">Projected Monthly</option>
-                    <option value="yearly">Projected Yearly</option>
-                </select>
-            </div>
-        </div>
-        <div id="dashboard_kpi_grid" class="dashboard-grid">
-            <div class="card" data-tip="dash_rev"><div class="muted">Total Revenue</div><div id="dash_kpi_revenue" class="big thin">$0</div></div>
-            <div class="card" data-tip="dash_gp"><div class="muted">Total Gross Profit</div><div id="dash_kpi_gp" class="big thin">$0</div></div>
-            <div class="card" data-tip="dash_op"><div class="muted">Total Operating Profit</div><div id="dash_kpi_op" class="big thin">$0</div></div>
-            <div class="card" data-tip="dash_comm"><div class="muted">Total Commission Cost</div><div id="dash_kpi_commission" class="big thin">$0</div></div>
-        </div>
-        <div class="dashboard-grid">
-            <div class="chart-container" data-tip="dash_chart_cogs">
-                <h3 id="cogs_chart_title">Cost Breakdown</h3>
-                <canvas id="cogsChart"></canvas>
-            </div>
-            <div class="chart-container" data-tip="dash_chart_profit">
-                <h3>Operating Profit by Channel</h3>
-                <canvas id="profitChart"></canvas>
-            </div>
-        </div>
-         <div class="dashboard-grid" style="grid-template-columns: 1fr;">
-            <div class="chart-container" style="max-height:none;" data-tip="dash_table_sku">
-                <h3>SKU Profitability Breakdown</h3>
-                <div class="scroller" style="max-height:400px; overflow:auto;">
-                    <table id="sku_profit_tbl">
-                        <thead>
-                            <tr>
-                                <th>SKU</th>
-                                <th>Qty</th>
-                                <th>Revenue</th>
-                                <th>Gross Profit</th>
-                                <th>Operating Profit</th>
-                            </tr>
-                        </thead>
-                        <tbody id="sku_profit_body"></tbody>
-                    </table>
+        <div class="dashboard-body text-slate-700">
+            <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+                <header class="mb-6">
+                    <h1 class="text-3xl font-bold text-slate-900">Dynamic Scenario Dashboard</h1>
+                    <p class="text-lg text-slate-600">An interactive view of your current calculator inputs.</p>
+                </header>
+
+                <!-- Main Controls and KPIs -->
+                <div class="bg-white rounded-xl border border-slate-200 p-6 mb-6">
+                    <div class="flex flex-wrap justify-between items-center gap-4 border-b border-slate-200 pb-4 mb-4">
+                        <h2 class="text-xl font-semibold text-slate-800" data-tip="dash_kpi_header">Key Performance Indicators <span class="q">?</span></h2>
+                        <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
+                            <button data-period="order" class="period-btn text-sm font-semibold py-1.5 px-3 rounded-md bg-indigo-600 text-white">Per Order</button>
+                            <button data-period="monthly" class="period-btn text-sm font-semibold py-1.5 px-3 rounded-md">Monthly</button>
+                            <button data-period="yearly" class="period-btn text-sm font-semibold py-1.5 px-3 rounded-md">Yearly</button>
+                        </div>
+                    </div>
+                    <div id="kpi-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-center">
+                        <!-- KPIs will be dynamically inserted here -->
+                    </div>
                 </div>
+
+                <!-- Tab Navigation -->
+                <nav class="flex flex-wrap border-b border-slate-200 mb-6" id="dash-tab-nav">
+                     <button data-tab-id="dash_overview" class="dash-tab-btn active py-3 px-4 -mb-px border-b-2 border-transparent text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors duration-200">Overview</button>
+                     <button data-tab-id="dash_cogs" class="dash-tab-btn py-3 px-4 -mb-px border-b-2 border-transparent text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors duration-200">Product & COGS</button>
+                     <button data-tab-id="dash_sales" class="dash-tab-btn py-3 px-4 -mb-px border-b-2 border-transparent text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors duration-200">Sales Channels</button>
+                     <button data-tab-id="dash_commissions" class="dash-tab-btn py-3 px-4 -mb-px border-b-2 border-transparent text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors duration-200">Commissions</button>
+                     <button data-tab-id="dash_inventory" class="dash-tab-btn py-3 px-4 -mb-px border-b-2 border-transparent text-sm font-semibold text-slate-600 hover:text-indigo-600 transition-colors duration-200">Inventory</button>
+                </nav>
+
+                <!-- Tab Content -->
+                <main>
+                    <div id="dash_overview" class="dash-tab-content grid grid-cols-1 lg:grid-cols-2 gap-6">
+                         <div class="bg-white rounded-xl border border-slate-200 p-6" data-tip="dash_chart_financials">
+                            <h3 class="text-lg font-semibold text-slate-800 mb-4">Financials by Channel <span class="q">?</span></h3>
+                            <div class="chart-container"><canvas id="salesChannelChart"></canvas></div>
+                        </div>
+                         <div class="bg-white rounded-xl border border-slate-200 p-6" data-tip="dash_chart_cogs">
+                            <h3 class="text-lg font-semibold text-slate-800 mb-4">Cost of Goods Sold (COGS) Breakdown <span class="q">?</span></h3>
+                             <div class="chart-container"><canvas id="cogsBreakdownChart"></canvas></div>
+                        </div>
+                    </div>
+                    <div id="dash_cogs" class="dash-tab-content hidden" data-tip="dash_table_cogs">
+                         <div class="bg-white rounded-xl border border-slate-200 p-6">
+                             <h3 class="text-lg font-semibold text-slate-800 mb-4">Detailed Cost Analysis (Per Pack) <span class="q">?</span></h3>
+                             <div id="cogs-details-table" class="overflow-x-auto"></div>
+                         </div>
+                    </div>
+                    <div id="dash_sales" class="dash-tab-content hidden" data-tip="dash_table_sales">
+                        <div class="bg-white rounded-xl border border-slate-200 p-6">
+                             <h3 class="text-lg font-semibold text-slate-800 mb-4">Sales Channel Performance <span class="q">?</span></h3>
+                             <div id="sales-details-table" class="overflow-x-auto"></div>
+                         </div>
+                    </div>
+                    <div id="dash_commissions" class="dash-tab-content hidden" data-tip="dash_table_commissions">
+                         <div class="bg-white rounded-xl border border-slate-200 p-6">
+                             <h3 class="text-lg font-semibold text-slate-800 mb-4">Commission Payout Projections <span class="q">?</span></h3>
+                             <div id="commissions-details-table" class="overflow-x-auto"></div>
+                         </div>
+                    </div>
+                    <div id="dash_inventory" class="dash-tab-content hidden grid grid-cols-1 lg:grid-cols-2 gap-6">
+                         <div class="bg-white rounded-xl border border-slate-200 p-6" data-tip="dash_chart_inv">
+                            <h3 class="text-lg font-semibold text-slate-800 mb-4">Inventory Status <span class="q">?</span></h3>
+                            <div class="chart-container"><canvas id="inventoryStatusChart"></canvas></div>
+                        </div>
+                         <div class="bg-white rounded-xl border border-slate-200 p-6" data-tip="dash_table_inv">
+                            <h3 class="text-lg font-semibold text-slate-800 mb-4">Inventory Details <span class="q">?</span></h3>
+                            <div id="inventory-details-table" class="overflow-x-auto max-h-[400px]"></div>
+                        </div>
+                    </div>
+                </main>
             </div>
-        </div>
-        <div class="dashboard-grid">
-            <div class="chart-container" data-tip="dash_chart_be">
-                <h3>Break-Even Units (Packs)</h3>
-                <canvas id="beChart"></canvas>
-            </div>
-            <div class="chart-container" data-tip="dash_chart_inv">
-                <h3>Inventory Stock Levels</h3>
-                <canvas id="inventoryChart"></canvas>
-            </div>
-        </div>
-        <div class="dashboard-grid" style="grid-template-columns: 1fr;">
-           <div class="chart-container" style="max-height:none;" data-tip="dash_table_alerts">
-               <h3>Inventory Alerts (Low Stock)</h3>
-               <div class="scroller" style="max-height:400px; overflow:auto;">
-                   <table id="inventory_dashboard_tbl">
-                       <thead>
-                           <tr>
-                               <th>Item Name</th>
-                               <th>Category</th>
-                               <th>Current Stock</th>
-                               <th>Status</th>
-                           </tr>
-                       </thead>
-                       <tbody id="inventory_dashboard_body"></tbody>
-                   </table>
-               </div>
-           </div>
         </div>
         <div class="wizard-nav"><button class="btn" data-nav="prev">&larr; Previous: Commissions</button><button class="btn" data-nav="next">Next: Inventory &rarr;</button></div>
     </div>
+    <!-- END NEW DASHBOARD -->
 
     <div id="inventory" class="tab-content">
         <section>
@@ -645,6 +642,12 @@ let cogsChartInstance = null;
 let profitChartInstance = null;
 let beChartInstance = null;
 let inventoryChartInstance = null;
+// ===== NEW: Scenario Dashboard Chart Instances =====
+let scenarioDashboardState = {
+    period: 'order', // 'order', 'monthly', 'yearly'
+    charts: {}
+};
+
 
 // ===== Inventory Data =====
 let INVENTORY = {};
@@ -656,14 +659,14 @@ const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 function num(v){ const x = Number(v); return isFinite(x)? x : 0 }
 function pct(x){ if(!isFinite(x)||x===0) return '0%'; return (x*100).toFixed(1).replace(/\.0$/, '')+'%' }
-function money(n) { return '$' + (Number(n) || 0).toFixed(2); }
+function money(n) { return '$' + (Number(n) || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function money3(n){ const x = Number(n||0); const s = Math.abs(x).toFixed(3); let out = s.replace(/\.([0-9]{2})0$/, '.$1'); out = out.replace(/\.00$/, ''); out = out.replace(/\B(?=(\d{3})+(?!\d))/g, ','); return (x<0?'-':'')+'$'+out }
 (function(){ const demo=[12,12.5,12.345,12.340,0].map(money3).join(' · '); $('#fmt_demo').textContent='Formatter: '+demo })();
 
 // ===== Tab / Wizard Navigation =====
 const tabs = ['setup', 'financials', 'commissions', 'dashboard', 'inventory'];
 function switchTab(targetTab) {
-    $$('.tab-btn').forEach(btn => {
+    $$('.main-tab-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tab === targetTab);
     });
     $$('.tab-content').forEach(content => {
@@ -672,7 +675,7 @@ function switchTab(targetTab) {
 }
 
 document.querySelector('.tab-nav').addEventListener('click', (e) => {
-    if (e.target.matches('.tab-btn')) {
+    if (e.target.matches('.main-tab-btn')) {
         switchTab(e.target.dataset.tab);
     }
 });
@@ -983,7 +986,7 @@ function calc(){
 
   const weightedRetailPrice = brev; // For backward compatibility in some tips maybe
   
-  LATEST_CALC = { S, ingPerPack: avgIngPerPack, packPerPack: avgPackPerPack, dispPerPack: avgDispPerPack, weightedShippingBoxCost: avgShipBoxPerPack, cogs, priceR: avgPriceR, priceW: avgPriceW, priceD: avgPriceD, gpR, gpW, gpD, gmR, gmW, gmD, ohPerPack, ohPerPackR, ohPerPackW, ohPerPackD, shipPerPack, opR, opW, opD, omR, omW, omD, brev, bgpp, bopp, bgmp, bomp, retailerProfit, distProfit, costPerMg, costPerGram, totalFixedCosts, be_units_R, be_units_W, be_units_D, be_units_B, be_rev_R, be_rev_W, be_rev_D, be_rev_B, ohTotal, totalPacks, totalPacksR, totalPacksW, totalPacksD, totalPills, weightedRetailPrice, weightedPillsPerPack, costPerPill, profitPerPillR, profitPerPillW, profitPerPillD, overheadPerPill, totalMonthlyVolume, thirdPartyTotal, totalRevenue, totalGp, totalOp };
+  LATEST_CALC = { S, ingPerPack: avgIngPerPack, packPerPack: avgPackPerPack, dispPerPack: avgDispPerPack, weightedShippingBoxCost: avgShipBoxPerPack, cogs, priceR: avgPriceR, priceW: avgPriceW, priceD: avgPriceD, gpR, gpW, gpD, gmR, gmW, gmD, ohPerPack, ohPerPackR, ohPerPackW, ohPerPackD, shipPerPack, opR, opW, opD, omR, omW, omD, brev, bgpp, bopp, bgmp, bomp, retailerProfit, distProfit, costPerMg, costPerGram, totalFixedCosts, be_units_R, be_units_W, be_units_D, be_units_B, be_rev_R, be_rev_W, be_rev_D, be_rev_B, ohTotal, totalPacks, totalPacksR, totalPacksW, totalPacksD, totalPills, weightedRetailPrice, weightedPillsPerPack, costPerPill, profitPerPillR, profitPerPillW, profitPerPillD, overheadPerPill, totalMonthlyVolume, thirdPartyTotal, totalRevenue, totalGp, totalOp, totalGpR, totalGpW, totalGpD, totalOpR, totalOpW, totalOpD };
   return LATEST_CALC;
 }
 function updateOrderComposition(){
@@ -1093,8 +1096,8 @@ function render(){
   $('#orderTotalDisplay2').value = money(C.totalRevenue);
   $('#orderTotalDisplay3').value = money(C.totalRevenue);
 
-  // Update Dashboard
-  updateDashboard(C);
+  // Update NEW Scenario Dashboard
+  updateScenarioDashboard(C);
 
 
   const formatRetailBE = (units, rev, pillsPerPack, packsPerDisplay) => {
@@ -1298,17 +1301,20 @@ function wireTips(C){
     inv_sync: {title: 'Sync Inventory List', body:()=> 'Scans the "Ingredients" and "Product Specifications" in the Setup tab and adds any new items (ingredients, packaging) to the inventory list with default stock levels. It will not remove existing items.'},
     inv_delete: {title: 'Delete Inventory', body:()=> 'Permanently deletes all items and stock levels from your inventory. This action cannot be undone.'},
 
-    // Dashboard Tooltips
-    dash_rev: {title: 'Total Revenue', body:()=> `The total projected revenue based on the selected period. This is the sum of revenue from all sales channels in your order composition.`},
-    dash_gp: {title: 'Total Gross Profit', body:()=> `Total Revenue minus the total Cost of Goods Sold (COGS). This is the profit before accounting for operating overhead or commissions.`},
-    dash_op: {title: 'Total Operating Profit', body:()=> `Total Gross Profit minus allocated operating overhead costs. This represents the profitability of the core business operations.`},
-    dash_comm: {title: 'Total Commission Cost', body:()=> `The total projected cost of sales commissions for the selected period, based on the hierarchy and settings in the Commissions tab.`},
-    dash_chart_cogs: {title: 'Cost Breakdown Chart', body:()=> `A pie chart showing the breakdown of the Cost of Goods Sold (COGS) per pack, plus the allocated commission cost per pack.`},
-    dash_chart_profit: {title: 'Operating Profit by Channel', body:()=> `A bar chart comparing the total operating profit generated by each sales channel (Retail, Wholesale, Distributor) for the selected period.`},
-    dash_table_sku: {title: 'SKU Profitability Table', body:()=> `A detailed breakdown of quantity, revenue, and profit for each individual SKU in your order composition, scaled for the selected period.`},
-    dash_chart_be: {title: 'Break-Even Units Chart', body:()=> `This bar chart shows the number of packs you need to sell in each channel (and blended across all channels) to cover your fixed costs.`},
-    dash_chart_inv: {title: 'Inventory Stock Levels Chart', body:()=> `A bar chart visualizing the current stock levels for every item in your inventory. Colors indicate status: green (OK), yellow (Low), and red (Out of Stock).`},
-    dash_table_alerts: {title: 'Inventory Alerts Table', body:()=> `This table lists only the inventory items that are currently low on stock or out of stock, based on the reorder points you've set.`},
+    // New Dashboard Tooltips
+    dash_kpi_header: {title: 'Key Performance Indicators', body:()=> 'These are the top-line metrics for your business, projected for the selected time period (Per Order, Monthly, or Yearly). They are derived directly from your inputs on the other tabs.'},
+    dash_kpi_revenue: {title: 'Total Revenue', body:()=> `The total projected sales income before any costs are deducted. <br>Retail Rev (${money(C.totalRevenueR)}) + Wholesale Rev (${money(C.totalRevenueW)}) + Distributor Rev (${money(C.totalRevenueD)}) = <b>${money(C.totalRevenue)}</b>`},
+    dash_kpi_gp: {title: 'Gross Profit', body:()=> `Total Revenue minus the Cost of Goods Sold (COGS). This is the profit made on the products themselves before overhead. <br>Total Revenue (${money(C.totalRevenue)}) - Total COGS (${money(C.cogs * C.totalPacks)}) = <b>${money(C.totalGp)}</b>`},
+    dash_kpi_op: {title: 'Operating Profit', body:()=> `Gross Profit minus all operating overhead (salaries, rent, etc.). This is the profit from core business operations. <br>Gross Profit (${money(C.totalGp)}) - Allocated Overhead (${money(C.ohPerPack * C.totalPacks)}) = <b>${money(C.totalOp)}</b>`},
+    dash_kpi_op_margin: {title: 'Operating Margin', body:()=> `Operating Profit as a percentage of Total Revenue. A key indicator of profitability. <br>Operating Profit (${money(C.totalOp)}) / Total Revenue (${money(C.totalRevenue)}) = <b>${pct(C.totalOp/C.totalRevenue)}</b>`},
+    dash_kpi_commission: {title: 'Commission Cost', body:()=> 'The total projected sales commission payout for the period, based on the commission hierarchy and settings.'},
+    dash_chart_financials: {title: 'Financials by Channel Chart', body:()=> 'This chart compares the total Revenue and Gross Profit generated by each sales channel (Retail, Wholesale, Distributor) for the selected period. It helps identify which channels are most profitable.'},
+    dash_chart_cogs: {title: 'COGS Breakdown Chart', body:()=> 'This chart shows what makes up your Cost of Goods Sold (COGS) on a per-pack basis. It helps you see where your product costs are concentrated.'},
+    dash_chart_inv: {title: 'Inventory Status Chart', body:()=> 'A real-time look at your raw material and packaging stock levels from the Inventory tab. Items below their reorder point are highlighted.'},
+    dash_table_cogs: {title: 'Detailed Cost Analysis Table', body:()=> 'A detailed, line-by-line breakdown of the costs that make up your blended COGS per pack.'},
+    dash_table_sales: {title: 'Sales Channel Performance Table', body:()=> 'A table showing the projected Revenue and Gross Profit totals for each sales channel for the selected period.'},
+    dash_table_commissions: {title: 'Commission Payouts Table', body:()=> 'A simplified breakdown of estimated commission payouts by role for the selected period.'},
+    dash_table_inv: {title: 'Inventory Details Table', body:()=> 'The full inventory list with current stock, reorder points, and status, matching the main Inventory tab.'},
 
     // New Commission Tooltips
     comm_period_view: {title: 'Projection Period View', body:()=> 'Select the time frame for the commission projection (Daily, Weekly, etc.).'},
@@ -1758,7 +1764,7 @@ function onSaveScenario(){
     hasUnsavedChanges = false;
     updateSaveButtonState();
 }
-function toCSV(){ const list=loadScenarios(); if(!list.length){ alert('No scenarios saved.'); return } const keys=SCENARIO_TABLE_KEYS.filter(c=>c !== 'load'); const header=keys.map(k => (ALL_COLUMNS.find(c=>c.key===k) || {}).label).join(','); const rows=list.map(r=> keys.map(k=> (r[k]??'').toString().replace(/\"/g,'""')).map(x=>'"'+x+'"').join(',')); const csv=[header, ...rows].join('\n'); const blob=new Blob([csv], {type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='scenarios.csv'; a.click(); URL.revokeObjectURL(url) }
+function toCSV(){ const list=loadScenarios(); if(!list.length){ alert('No scenarios saved.'); return } const keys=SCENARIO_TABLE_KEYS.filter(c=>c !== 'load'); const header=keys.map(k => (ALL_COLUMNS.find(c=>c.key===k) || {}).label).join(','); const rows=list.map(r=> keys.map(k=> (r[k]??'').toString().replace(/\"/g,'""')).map(x=>'"'+x+'"').join(',')); const csv=[header, ...rows].join('\n'); const blob=new Blob([csv], {type:'text/csv;charset=utf-t8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='scenarios.csv'; a.click(); URL.revokeObjectURL(url) }
 
 // Capture modal
 const GROUPS = {
@@ -2100,473 +2106,213 @@ function updateShareTotal() {
     totalEl.className = `percent-total ${total.toFixed(1) == 100.0 ? 'ok' : 'error'}`;
 }
 
-// ===== Dashboard Logic =====
-function updateDashboard(C) {
-    const projection = $('#dashboard_projection_select').value;
-    let multiplier = 1;
-    let titleSuffix = ' (Current Order)';
-    
-    if (projection === 'monthly') {
-        multiplier = C.totalMonthlyVolume / (C.totalPacks || 1);
-        titleSuffix = ' (Projected Monthly)';
-    } else if (projection === 'yearly') {
-        multiplier = (C.totalMonthlyVolume / (C.totalPacks || 1)) * 12;
-        titleSuffix = ' (Projected Yearly)';
-    }
-
-    $('#dash_kpi_revenue').textContent = money(C.totalRevenue * multiplier);
-    $('#dash_kpi_gp').textContent = money(C.totalGp * multiplier);
-    $('#dash_kpi_op').textContent = money(C.totalOp * multiplier);
-    
-    const commPerOrder = (window.lastCommissionTotal || 0) / (num($('#ordersPerYear').value) || 1);
-    let totalCommission = commPerOrder;
-    if(projection === 'monthly') {
-        totalCommission = (commPerOrder * num($('#ordersPerYear').value)) / 12;
-    } else if (projection === 'yearly') {
-        totalCommission = commPerOrder * num($('#ordersPerYear').value);
-    }
-    $('#dash_kpi_commission').textContent = money(totalCommission);
-
-
-    $('#cogs_chart_title').textContent = `Cost Breakdown ${titleSuffix}`;
-    updateDashboardCharts(C, totalCommission, multiplier);
-    renderSkuProfitabilityTable(C, multiplier);
-    renderInventoryDashboardTable();
+// ===== START: New Scenario Dashboard Logic =====
+function getPeriodMultiplier(period, C) {
+    if (period === 'monthly') return C.totalMonthlyVolume / (C.totalPacks || 1);
+    if (period === 'yearly') return (C.totalMonthlyVolume / (C.totalPacks || 1)) * 12;
+    return 1; // for 'order'
 }
 
-function updateDashboardCharts(C, totalCommission, multiplier) {
-    // --- COGS Chart ---
-    const cogsCtx = document.getElementById('cogsChart').getContext('2d');
-    if (cogsChartInstance) cogsChartInstance.destroy();
+function renderDashboardKPIs(C) {
+    const multiplier = getPeriodMultiplier(scenarioDashboardState.period, C);
     
-    const commissionPerPack = C.totalPacks > 0 ? totalCommission / C.totalPacks : 0;
+    let commissionCost = 0;
+    const ordersPerYear = num($('#ordersPerYear').value) || 1;
+    const commPerOrder = (window.lastCommissionTotal || 0) / ordersPerYear;
 
-    cogsChartInstance = new Chart(cogsCtx, {
-        type: 'pie',
-        data: {
-            labels: ['Ingredients', 'Packaging', 'Display Box', 'Shipping Box', 'Commissions'],
-            datasets: [{
-                data: [C.ingPerPack, C.packPerPack, C.dispPerPack, C.weightedShippingBoxCost, commissionPerPack],
-                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'],
-                hoverOffset: 4
-            }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'top' },
-                tooltip: { callbacks: { label: (c) => `${c.label}: ${money3(c.raw)}` } }
-            }
-        }
-    });
+    if (scenarioDashboardState.period === 'order') {
+        commissionCost = commPerOrder;
+    } else if (scenarioDashboardState.period === 'monthly') {
+        commissionCost = (commPerOrder * ordersPerYear) / 12;
+    } else if (scenarioDashboardState.period === 'yearly') {
+        commissionCost = window.lastCommissionTotal || 0;
+    }
 
-    // --- Profit Chart ---
-    const profitCtx = document.getElementById('profitChart').getContext('2d');
-    if (profitChartInstance) profitChartInstance.destroy();
-    profitChartInstance = new Chart(profitCtx, {
+    const kpis = [
+        { label: 'Total Revenue', value: money(C.totalRevenue * multiplier), tip: 'dash_kpi_revenue' },
+        { label: 'Gross Profit', value: money(C.totalGp * multiplier), tip: 'dash_kpi_gp' },
+        { label: 'Operating Profit', value: money(C.totalOp * multiplier), tip: 'dash_kpi_op' },
+        { label: 'Operating Margin', value: pct(C.totalRevenue > 0 ? C.totalOp / C.totalRevenue : 0), tip: 'dash_kpi_op_margin'},
+        { label: 'Commission Cost', value: money(commissionCost), tip: 'dash_kpi_commission' }
+    ];
+
+    const container = document.getElementById('kpi-container');
+    container.innerHTML = kpis.map(kpi => `
+        <div class="p-2" data-tip="${kpi.tip}">
+            <h3 class="text-sm font-medium text-slate-500">${kpi.label} <span class="q">?</span></h3>
+            <p class="text-2xl font-semibold text-slate-900 mt-1">${kpi.value}</p>
+        </div>
+    `).join('');
+}
+
+function renderDashboardTables(C) {
+    const multiplier = getPeriodMultiplier(scenarioDashboardState.period, C);
+    
+    // COGS Table
+    document.getElementById('cogs-details-table').innerHTML = `
+        <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-left"><tr>
+                <th class="p-4 font-semibold">Cost Component</th><th class="p-4 font-semibold">Cost Per Pack</th>
+            </tr></thead>
+            <tbody>
+                <tr class="border-t border-slate-200">
+                    <td class="p-4">Ingredients</td><td class="p-4">${money3(C.ingPerPack)}</td>
+                </tr>
+                <tr class="border-t border-slate-200">
+                    <td class="p-4">Packaging (Inner & Outer)</td><td class="p-4">${money3(C.packPerPack)}</td>
+                </tr>
+                 <tr class="border-t border-slate-200">
+                    <td class="p-4">Display Box (Amortized)</td><td class="p-4">${money3(C.dispPerPack)}</td>
+                </tr>
+                 <tr class="border-t border-slate-200">
+                    <td class="p-4">Shipping Box (Amortized)</td><td class="p-4">${money3(C.weightedShippingBoxCost)}</td>
+                </tr>
+                <tr class="border-t-2 border-slate-300 font-bold">
+                    <td class="p-4">Total COGS per Pack</td><td class="p-4">${money3(C.cogs)}</td>
+                </tr>
+            </tbody>
+        </table>`;
+
+    // Sales Table
+    document.getElementById('sales-details-table').innerHTML = `
+        <table class="w-full text-sm">
+             <thead class="bg-slate-50 text-left"><tr>
+                <th class="p-4 font-semibold">Channel</th><th class="p-4 font-semibold">Revenue</th><th class="p-4 font-semibold">Gross Profit</th>
+            </tr></thead>
+            <tbody>
+                 <tr class="border-t border-slate-200">
+                    <td class="p-4">Retail</td>
+                    <td class="p-4">${money(C.totalPacksR * C.priceR * multiplier)}</td>
+                    <td class="p-4">${money(C.totalGpR * multiplier)}</td>
+                </tr>
+                <tr class="border-t border-slate-200">
+                    <td class="p-4">Wholesale</td>
+                    <td class="p-4">${money(C.totalPacksW * C.priceW * multiplier)}</td>
+                    <td class="p-4">${money(C.totalGpW * multiplier)}</td>
+                </tr>
+                 <tr class="border-t border-slate-200">
+                    <td class="p-4">Distributor</td>
+                    <td class="p-4">${money(C.totalPacksD * C.priceD * multiplier)}</td>
+                    <td class="p-4">${money(C.totalGpD * multiplier)}</td>
+                </tr>
+            </tbody>
+        </table>`;
+
+    // Commissions Table (Simplified from last calculation)
+    let commHtml = '<table class="w-full text-sm"><thead class="bg-slate-50 text-left"><tr><th class="p-4 font-semibold">Role</th><th class="p-4 font-semibold">Projected Payout</th></tr></thead><tbody>';
+    if(window.lastCommissionBreakdown && window.lastCommissionBreakdown.length > 0) {
+        let totalPeriodPayout = 0;
+        window.lastCommissionBreakdown.forEach(payout => {
+            let periodPayout = payout.total;
+             if (scenarioDashboardState.period === 'monthly') {
+                 periodPayout = (payout.total / 12);
+             } else if (scenarioDashboardState.period === 'order') {
+                 periodPayout = payout.total / (num($('#ordersPerYear').value) || 1);
+             }
+            totalPeriodPayout += periodPayout;
+            commHtml += `<tr class="border-t border-slate-200"><td class="p-4">${payout.name}</td><td class="p-4">${money(periodPayout)}</td></tr>`;
+        });
+        commHtml += `<tr class="border-t-2 border-slate-300 font-bold"><td class="p-4">Total</td><td class="p-4">${money(totalPeriodPayout)}</td></tr>`;
+    } else {
+        commHtml += `<tr><td colspan="2" class="p-4 text-center">No commission data calculated.</td></tr>`;
+    }
+    commHtml += `</tbody></table>`;
+    document.getElementById('commissions-details-table').innerHTML = commHtml;
+
+    // Inventory Table
+    let invHtml = '<table class="w-full text-sm"><thead class="bg-slate-50 text-left"><tr><th class="p-4 font-semibold">Item</th><th class="p-4 font-semibold">Stock</th><th class="p-4 font-semibold">Reorder Point</th><th class="p-4 font-semibold">Status</th></tr></thead><tbody>';
+    for(const [name, item] of Object.entries(INVENTORY)) {
+        const status = item.stock > item.reorder ? '<span class="text-emerald-600">OK</span>' : '<span class="text-amber-600">Low</span>';
+        invHtml += `<tr class="border-t border-slate-200"><td class="p-4">${name}</td><td class="p-4">${item.stock.toLocaleString()} ${item.unit}</td><td class="p-4">${item.reorder.toLocaleString()} ${item.unit}</td><td class="p-4 font-semibold">${status}</td></tr>`
+    }
+    invHtml += `</tbody></table>`;
+    document.getElementById('inventory-details-table').innerHTML = invHtml;
+}
+
+function renderDashboardCharts(C) {
+    const multiplier = getPeriodMultiplier(scenarioDashboardState.period, C);
+
+    // Sales Channel Chart
+    const salesCtx = document.getElementById('salesChannelChart')?.getContext('2d');
+    if (!salesCtx) return;
+    if (scenarioDashboardState.charts.sales) scenarioDashboardState.charts.sales.destroy();
+    scenarioDashboardState.charts.sales = new Chart(salesCtx, {
         type: 'bar',
         data: {
             labels: ['Retail', 'Wholesale', 'Distributor'],
+            datasets: [
+                { label: 'Revenue', data: [C.totalPacksR * C.priceR * multiplier, C.totalPacksW * C.priceW * multiplier, C.totalPacksD * C.priceD * multiplier], backgroundColor: '#4f46e5' },
+                { label: 'Gross Profit', data: [C.totalGpR * multiplier, C.totalGpW * multiplier, C.totalGpD * multiplier], backgroundColor: '#a5b4fc' }
+            ]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+    });
+
+    // COGS Chart
+    const cogsCtx = document.getElementById('cogsBreakdownChart')?.getContext('2d');
+    if (!cogsCtx) return;
+    if (scenarioDashboardState.charts.cogs) scenarioDashboardState.charts.cogs.destroy();
+    scenarioDashboardState.charts.cogs = new Chart(cogsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Ingredients', 'Packaging', 'Display', 'Shipping Box'],
             datasets: [{
-                label: 'Operating Profit',
-                data: [C.opR * C.totalPacksR * multiplier, C.opW * C.totalPacksW * multiplier, C.opD * C.totalPacksD * multiplier],
-                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc'],
+                data: [C.ingPerPack, C.packPerPack, C.dispPerPack, C.weightedShippingBoxCost],
+                backgroundColor: ['#4f46e5', '#818cf8', '#a5b4fc', '#c7d2fe']
             }]
         },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true } },
-            plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: (c) => `Profit: ${money(c.raw)}` } }
-            }
-        }
+        options: { responsive: true, maintainAspectRatio: false }
     });
-    
-    // --- Break-Even Chart ---
-    const beCtx = document.getElementById('beChart').getContext('2d');
-    if(beChartInstance) beChartInstance.destroy();
-    beChartInstance = new Chart(beCtx, {
+
+    // Inventory Chart
+    const invCtx = document.getElementById('inventoryStatusChart')?.getContext('2d');
+    if (!invCtx) return;
+    if(scenarioDashboardState.charts.inventory) scenarioDashboardState.charts.inventory.destroy();
+    const invLabels = Object.keys(INVENTORY).sort();
+    const invData = invLabels.map(key => INVENTORY[key].stock);
+    const invReorder = invLabels.map(key => INVENTORY[key].reorder);
+    scenarioDashboardState.charts.inventory = new Chart(invCtx, {
         type: 'bar',
         data: {
-            labels: ['Retail', 'Wholesale', 'Distributor', 'Blended'],
-            datasets: [{
-                label: 'Break-Even Units (Packs)',
-                data: [
-                    isFinite(C.be_units_R) ? C.be_units_R : 0, 
-                    isFinite(C.be_units_W) ? C.be_units_W : 0, 
-                    isFinite(C.be_units_D) ? C.be_units_D : 0, 
-                    isFinite(C.be_units_B) ? C.be_units_B : 0
-                ],
-                backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e'],
-            }]
+            labels: invLabels,
+            datasets: [
+                { label: 'Current Stock', data: invData, backgroundColor: '#4f46e5' },
+                { label: 'Reorder Point', data: invReorder, type: 'line', borderColor: '#fb923c', borderWidth: 2, fill: false, pointRadius: 0 }
+            ]
         },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { y: { beginAtZero: true } },
-            plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: (c) => `${c.raw.toLocaleString()} packs` } }
-            }
+         options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { autoSkip: false, maxRotation: 45, minRotation: 45 } } } }
+    });
+}
+
+
+function updateScenarioDashboard(C){
+    if(!C || !C.S) return; // Don't run if no calculations are ready
+    renderDashboardKPIs(C);
+    renderDashboardTables(C);
+    renderDashboardCharts(C);
+}
+
+function wireDashboardEvents() {
+    $('#dashboard').addEventListener('click', e => {
+        // Period Buttons
+        if (e.target.matches('.period-btn')) {
+            $$('.period-btn').forEach(b => b.classList.remove('bg-indigo-600', 'text-white'));
+            e.target.classList.add('bg-indigo-600', 'text-white');
+            scenarioDashboardState.period = e.target.dataset.period;
+            render(); // Trigger a full re-render
         }
-    });
-    
-    // --- Inventory Chart ---
-    const invCtx = document.getElementById('inventoryChart').getContext('2d');
-    if (inventoryChartInstance) inventoryChartInstance.destroy();
-    
-    const inventoryLabels = Object.keys(INVENTORY).sort((a, b) => a.localeCompare(b));
-    const inventoryData = inventoryLabels.map(key => INVENTORY[key].stock);
-    const inventoryColors = inventoryLabels.map(key => {
-        const item = INVENTORY[key];
-        if (item.stock <= 0) return '#e74a3b'; // red
-        if (item.reorder > 0 && item.stock <= item.reorder) return '#f6c23e'; // yellow
-        return '#1cc88a'; // green
-    });
-
-    inventoryChartInstance = new Chart(invCtx, {
-        type: 'bar',
-        data: {
-            labels: inventoryLabels,
-            datasets: [{
-                label: 'Current Stock',
-                data: inventoryData,
-                backgroundColor: inventoryColors,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { 
-                y: { beginAtZero: true },
-                x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 45 } }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: (c) => `Stock: ${c.raw.toLocaleString()}` } }
-            }
-        }
-    });
-}
-
-function renderSkuProfitabilityTable(C, multiplier) {
-    const tableBody = $('#sku_profit_body');
-    tableBody.innerHTML = '';
-    const { S } = C;
-
-    S.order.forEach(orderItem => {
-        const sku = S.skus.find(s => s.sku === orderItem.sku);
-        if (!sku || orderItem.qty <= 0) return;
-
-        const ingPerPack = S.ing.reduce((a, x) => a + (x.mg * sku.pills * x.usdmg), 0);
-        const cogsPerPack = ingPerPack + sku.innerPkgCost + sku.outerBoxCost + (sku.displayBoxCost / sku.packsPerDisplay) + (sku.shippingBoxCost / sku.packsPerShipBox);
-        
-        const packsR = orderItem.qty * (sku.mixR / 100);
-        const packsW = orderItem.qty * (sku.mixW / 100);
-        const packsD = orderItem.qty * (sku.mixD / 100);
-
-        const priceR = sku.retailPrice;
-        const priceW = priceR * (1 - S.wDisc / 100);
-        const priceD = priceW * (1 - S.dDisc / 100);
-
-        const skuRevenue = (packsR * priceR) + (packsW * priceW) + (packsD * priceD);
-        const skuGrossProfit = skuRevenue - (cogsPerPack * orderItem.qty);
-        
-        const ohPerPack = C.ohTotal / (C.totalMonthlyVolume || 1);
-        const ohR = S.ohR ? ohPerPack : 0;
-        const ohW = S.ohW ? ohPerPack : 0;
-        const ohD = S.ohD ? ohPerPack : 0;
-        const ship = S.includeShip ? S.shippingPerPack : 0;
-
-        const opR = (priceR - cogsPerPack - ohR - ship) * packsR;
-        const opW = (priceW - cogsPerPack - ohW) * packsW;
-        const opD = (priceD - cogsPerPack - ohD) * packsD;
-        const skuOperatingProfit = opR + opW + opD;
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${sku.sku}</td>
-            <td>${Math.round(orderItem.qty * multiplier).toLocaleString()}</td>
-            <td>${money(skuRevenue * multiplier)}</td>
-            <td>${money(skuGrossProfit * multiplier)}</td>
-            <td>${money(skuOperatingProfit * multiplier)}</td>
-        `;
-        tableBody.appendChild(tr);
-    });
-}
-
-function renderInventoryDashboardTable() {
-    const tableBody = $('#inventory_dashboard_body');
-    tableBody.innerHTML = '';
-    const lowStockItems = Object.keys(INVENTORY)
-        .filter(key => {
-            const item = INVENTORY[key];
-            return item.stock <= 0 || (item.reorder > 0 && item.stock <= item.reorder);
-        })
-        .sort((a,b) => a.localeCompare(b));
-
-    if (lowStockItems.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding: 20px;">All items are well-stocked.</td></tr>`;
-        return;
-    }
-
-    lowStockItems.forEach(key => {
-        const item = INVENTORY[key];
-        const tr = document.createElement('tr');
-        
-        let statusClass = 'status-low';
-        let statusText = 'Low Stock';
-        if (item.stock <= 0) {
-            statusClass = 'status-out';
-            statusText = 'Out of Stock';
-        }
-
-        tr.innerHTML = `
-            <td>${key}</td>
-            <td>${item.category}</td>
-            <td>${item.stock.toLocaleString()} ${item.unit}</td>
-            <td><span class="status-cell ${statusClass}">${statusText}</span></td>
-        `;
-        tableBody.appendChild(tr);
-    });
-}
-
-
-// ===== START: Inventory Logic =====
-
-function loadInventory() {
-    try {
-        INVENTORY = JSON.parse(localStorage.getItem(INV_LS_KEY) || '{}');
-    } catch (e) {
-        console.error("Could not load inventory from localStorage", e);
-        INVENTORY = {};
-    }
-}
-
-function saveInventory() {
-    try {
-        localStorage.setItem(INV_LS_KEY, JSON.stringify(INVENTORY));
-    } catch (e) {
-        console.error("Could not save inventory to localStorage", e);
-    }
-}
-
-function syncInventoryList() {
-    const S = getState();
-    let updated = false;
-
-    // Add ingredients
-    S.ing.forEach(ing => {
-        if (ing.name && !INVENTORY[ing.name]) {
-            INVENTORY[ing.name] = { category: 'Ingredient', unit: 'mg', stock: 10000000000, reorder: 100000 };
-            updated = true;
-        }
-    });
-
-    // Add packaging components
-    S.skus.forEach(sku => {
-        const componentNames = [
-            { name: `${sku.sku} Inner Pkg`, cost: sku.innerPkgCost },
-            { name: `${sku.sku} Outer Box`, cost: sku.outerBoxCost },
-            { name: `${sku.sku} Display Box`, cost: sku.displayBoxCost },
-            { name: `${sku.sku} Shipping Box`, cost: sku.shippingBoxCost }
-        ];
-        componentNames.forEach(comp => {
-            if (comp.cost > 0 && !INVENTORY[comp.name]) {
-                INVENTORY[comp.name] = { category: 'Packaging', unit: 'units', stock: 1000000, reorder: 2000 };
-                updated = true;
-            }
-        });
-    });
-
-    if (updated) {
-        saveInventory();
-        renderInventoryTable();
-        const statusChip = $('#status');
-        statusChip.textContent = 'Inventory Synced!';
-        statusChip.style.backgroundColor = 'lightblue';
-        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
-    } else {
-        const statusChip = $('#status');
-        statusChip.textContent = 'No new items to sync.';
-        statusChip.style.backgroundColor = '';
-        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
-    }
-}
-
-function renderInventoryTable() {
-    const tableBody = $('#inventory_body');
-    tableBody.innerHTML = '';
-    const sortedKeys = Object.keys(INVENTORY).sort((a,b) => a.localeCompare(b));
-
-    if (sortedKeys.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px;">Your inventory is empty. Click "Sync Inventory List" to get started.</td></tr>`;
-        updateInventoryAlerts();
-        return;
-    }
-
-    sortedKeys.forEach(key => {
-        const item = INVENTORY[key];
-        const tr = document.createElement('tr');
-        
-        let statusClass = 'status-ok';
-        let statusText = 'OK';
-        if (item.stock <= 0) {
-            statusClass = 'status-out';
-            statusText = 'Out of Stock';
-        } else if (item.reorder > 0 && item.stock <= item.reorder) {
-            statusClass = 'status-low';
-            statusText = 'Low Stock';
-        }
-        tr.innerHTML = `
-            <td>${key}</td>
-            <td>${item.category}</td>
-            <td><input type="number" class="inv-stock" data-key="${key}" value="${item.stock}"></td>
-            <td>${item.unit}</td>
-            <td><input type="number" class="inv-reorder" data-key="${key}" value="${item.reorder}"></td>
-            <td><span class="status-cell ${statusClass}">${statusText}</span></td>
-        `;
-        tableBody.appendChild(tr);
-    });
-
-    // Add event listeners after rows are created
-    $$('#inventory_body input').forEach(input => {
-        input.addEventListener('change', (e) => {
-            const key = e.target.dataset.key;
-            const field = e.target.classList.contains('inv-stock') ? 'stock' : 'reorder';
-            INVENTORY[key][field] = num(e.target.value);
-            saveInventory();
-            renderInventoryTable(); // Re-render to update status
-        });
-    });
-    
-    updateInventoryAlerts();
-}
-
-function replenishStock() {
-    showConfirmation("This will ADD the default stock amount to all current inventory items. Are you sure?", () => {
-        Object.keys(INVENTORY).forEach(key => {
-            const item = INVENTORY[key];
-            if (item.category === 'Ingredient') {
-                item.stock += 10000000000;
-            } else if (item.category === 'Packaging') {
-                item.stock += 1000000;
-            }
-        });
-        saveInventory();
-        renderInventoryTable();
-        render(); // Re-render everything to update dashboard
-        
-        const statusChip = $('#status');
-        statusChip.textContent = 'Inventory Replenished!';
-        statusChip.style.backgroundColor = 'lightblue';
-        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
-    });
-}
-
-function deleteInventory() {
-    showConfirmation("Are you sure you want to permanently delete all inventory data? This action cannot be undone.", () => {
-        INVENTORY = {};
-        localStorage.removeItem(INV_LS_KEY);
-        renderInventoryTable();
-        render(); // Re-render everything to update dashboard charts
-
-        const statusChip = $('#status');
-        statusChip.textContent = 'Inventory Deleted!';
-        statusChip.style.backgroundColor = '#e74a3b'; // red
-        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
-    });
-}
-
-
-function updateInventoryAlerts() {
-    const alertsContainer = $('#inventory_alerts');
-    alertsContainer.innerHTML = '';
-    const alertItems = Object.keys(INVENTORY).filter(key => {
-        const item = INVENTORY[key];
-        return item.stock <= 0 || (item.reorder > 0 && item.stock <= item.reorder);
-    });
-
-    if (alertItems.length > 0) {
-        const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert low-stock';
-        const itemMessages = alertItems.map(key => {
-                const item = INVENTORY[key];
-                return `${key}${item.stock <= 0 ? ' (Out of Stock)' : ''}`;
-        });
-        alertDiv.innerHTML = `<strong>Low Stock Alert:</strong> The following items need reordering: ${itemMessages.join(', ')}.`;
-        alertsContainer.appendChild(alertDiv);
-    }
-}
-
-function finalizeOrder() {
-    const C = calc();
-    if (C.totalPacks === 0) {
-        showConfirmation("Please add items to the Order Composition before finalizing.", ()=>{});
-        return;
-    }
-
-    showConfirmation("This will calculate the order and deduct the required raw materials from your inventory. This action cannot be undone. Are you sure you want to proceed?", () => {
-        const consumption = {};
-        
-        // Tally consumption
-        C.S.order.forEach(orderItem => {
-            const sku = C.S.skus.find(s => s.sku === orderItem.sku);
-            if (!sku || orderItem.qty <= 0) return;
-
-            // Packaging
-            if(sku.innerPkgCost > 0) {
-                const key = `${sku.sku} Inner Pkg`;
-                consumption[key] = (consumption[key] || 0) + orderItem.qty;
-            }
-            if(sku.outerBoxCost > 0) {
-                const key = `${sku.sku} Outer Box`;
-                consumption[key] = (consumption[key] || 0) + orderItem.qty;
-            }
-            if(sku.displayBoxCost > 0) {
-                 const key = `${sku.sku} Display Box`;
-                consumption[key] = (consumption[key] || 0) + (orderItem.qty / sku.packsPerDisplay);
-            }
-             if(sku.shippingBoxCost > 0) {
-                const key = `${sku.sku} Shipping Box`;
-                consumption[key] = (consumption[key] || 0) + (orderItem.qty / sku.packsPerShipBox);
-            }
-
-            // Ingredients
-            const totalPills = orderItem.qty * sku.pills;
-            C.S.ing.forEach(ing => {
-                if (ing.name && ing.mg > 0) {
-                    consumption[ing.name] = (consumption[ing.name] || 0) + (totalPills * ing.mg);
-                }
+        // Sub-Tab Buttons
+        if (e.target.matches('.dash-tab-btn')) {
+            const tabId = e.target.dataset.tabId;
+            $$('.dash-tab-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+            $$('.dash-tab-content').forEach(content => {
+                content.classList.toggle('hidden', content.id !== tabId);
             });
-        });
-        
-        // Deduct from inventory
-        let itemsNotFound = [];
-        Object.keys(consumption).forEach(key => {
-            if (INVENTORY[key]) {
-                INVENTORY[key].stock -= consumption[key];
-            } else {
-                itemsNotFound.push(key);
-            }
-        });
-
-        saveInventory();
-        renderInventoryTable();
-        render(); // re-render to update dashboard
-
-        const statusChip = $('#status');
-        statusChip.textContent = 'Order Finalized & Inventory Updated';
-        statusChip.style.backgroundColor = 'lightgreen';
-        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
-
-        if (itemsNotFound.length > 0) {
-            showConfirmation(`Warning: The following items were consumed but not found in your inventory list. Please sync inventory and set their stock levels:\n\n${itemsNotFound.join('\n')}`, ()=>{});
         }
     });
 }
-
-// ===== END: Inventory Logic =====
+// ===== END: New Scenario Dashboard Logic =====
 
 
 // ===== Events =====
@@ -2600,10 +2346,6 @@ function wireInputs(){
             render();
         }
         
-        if (t.id === 'dashboard_projection_select') {
-            render();
-        }
-
         if ($('#autoCalc').checked) {
             render();
         }
@@ -2632,6 +2374,9 @@ function wireInputs(){
     $('#finalize_order_btn').onclick = finalizeOrder;
     $('#replenishBtn').onclick = replenishStock;
     $('#deleteInventoryBtn').onclick = deleteInventory;
+    
+    // Wire up new dashboard events
+    wireDashboardEvents();
 }
 // ===== Boot =====
 function boot(){
@@ -2695,7 +2440,7 @@ boot();
 (function(){
   const $ = (s, el=document)=>el.querySelector(s);
   const $$ = (s, el=document)=>Array.from(el.querySelectorAll(s));
-  const money = n => '$'+(Number(n)||0).toFixed(2);
+  
   const pct = n => (Number(n)||0).toFixed(2)+'%';
   
   function prorateBase(monthly){ 
@@ -3188,9 +2933,241 @@ boot();
   };
 
 })();
+
+// ===== START: Inventory Logic =====
+
+function loadInventory() {
+    try {
+        INVENTORY = JSON.parse(localStorage.getItem(INV_LS_KEY) || '{}');
+    } catch (e) {
+        console.error("Could not load inventory from localStorage", e);
+        INVENTORY = {};
+    }
+}
+
+function saveInventory() {
+    try {
+        localStorage.setItem(INV_LS_KEY, JSON.stringify(INVENTORY));
+    } catch (e) {
+        console.error("Could not save inventory to localStorage", e);
+    }
+}
+
+function syncInventoryList() {
+    const S = getState();
+    let updated = false;
+
+    // Add ingredients
+    S.ing.forEach(ing => {
+        if (ing.name && !INVENTORY[ing.name]) {
+            INVENTORY[ing.name] = { category: 'Ingredient', unit: 'mg', stock: 10000000000, reorder: 100000 };
+            updated = true;
+        }
+    });
+
+    // Add packaging components
+    S.skus.forEach(sku => {
+        const componentNames = [
+            { name: `${sku.sku} Inner Pkg`, cost: sku.innerPkgCost },
+            { name: `${sku.sku} Outer Box`, cost: sku.outerBoxCost },
+            { name: `${sku.sku} Display Box`, cost: sku.displayBoxCost },
+            { name: `${sku.sku} Shipping Box`, cost: sku.shippingBoxCost }
+        ];
+        componentNames.forEach(comp => {
+            if (comp.cost > 0 && !INVENTORY[comp.name]) {
+                INVENTORY[comp.name] = { category: 'Packaging', unit: 'units', stock: 1000000, reorder: 2000 };
+                updated = true;
+            }
+        });
+    });
+
+    if (updated) {
+        saveInventory();
+        renderInventoryTable();
+        const statusChip = $('#status');
+        statusChip.textContent = 'Inventory Synced!';
+        statusChip.style.backgroundColor = 'lightblue';
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+    } else {
+        const statusChip = $('#status');
+        statusChip.textContent = 'No new items to sync.';
+        statusChip.style.backgroundColor = '';
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+    }
+}
+
+function renderInventoryTable() {
+    const tableBody = $('#inventory_body');
+    tableBody.innerHTML = '';
+    const sortedKeys = Object.keys(INVENTORY).sort((a,b) => a.localeCompare(b));
+
+    if (sortedKeys.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px;">Your inventory is empty. Click "Sync Inventory List" to get started.</td></tr>`;
+        updateInventoryAlerts();
+        return;
+    }
+
+    sortedKeys.forEach(key => {
+        const item = INVENTORY[key];
+        const tr = document.createElement('tr');
+        
+        let statusClass = 'status-ok';
+        let statusText = 'OK';
+        if (item.stock <= 0) {
+            statusClass = 'status-out';
+            statusText = 'Out of Stock';
+        } else if (item.reorder > 0 && item.stock <= item.reorder) {
+            statusClass = 'status-low';
+            statusText = 'Low Stock';
+        }
+        tr.innerHTML = `
+            <td>${key}</td>
+            <td>${item.category}</td>
+            <td><input type="number" class="inv-stock" data-key="${key}" value="${item.stock}"></td>
+            <td>${item.unit}</td>
+            <td><input type="number" class="inv-reorder" data-key="${key}" value="${item.reorder}"></td>
+            <td><span class="status-cell ${statusClass}">${statusText}</span></td>
+        `;
+        tableBody.appendChild(tr);
+    });
+
+    // Add event listeners after rows are created
+    $$('#inventory_body input').forEach(input => {
+        input.addEventListener('change', (e) => {
+            const key = e.target.dataset.key;
+            const field = e.target.classList.contains('inv-stock') ? 'stock' : 'reorder';
+            INVENTORY[key][field] = num(e.target.value);
+            saveInventory();
+            renderInventoryTable(); // Re-render to update status
+        });
+    });
+    
+    updateInventoryAlerts();
+}
+
+function replenishStock() {
+    showConfirmation("This will ADD the default stock amount to all current inventory items. Are you sure?", () => {
+        Object.keys(INVENTORY).forEach(key => {
+            const item = INVENTORY[key];
+            if (item.category === 'Ingredient') {
+                item.stock += 10000000000;
+            } else if (item.category === 'Packaging') {
+                item.stock += 1000000;
+            }
+        });
+        saveInventory();
+        renderInventoryTable();
+        render(); // Re-render everything to update dashboard
+        
+        const statusChip = $('#status');
+        statusChip.textContent = 'Inventory Replenished!';
+        statusChip.style.backgroundColor = 'lightblue';
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+    });
+}
+
+function deleteInventory() {
+    showConfirmation("Are you sure you want to permanently delete all inventory data? This action cannot be undone.", () => {
+        INVENTORY = {};
+        localStorage.removeItem(INV_LS_KEY);
+        renderInventoryTable();
+        render(); // Re-render everything to update dashboard charts
+
+        const statusChip = $('#status');
+        statusChip.textContent = 'Inventory Deleted!';
+        statusChip.style.backgroundColor = '#e74a3b'; // red
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+    });
+}
+
+
+function updateInventoryAlerts() {
+    const alertsContainer = $('#inventory_alerts');
+    alertsContainer.innerHTML = '';
+    const alertItems = Object.keys(INVENTORY).filter(key => {
+        const item = INVENTORY[key];
+        return item.stock <= 0 || (item.reorder > 0 && item.stock <= item.reorder);
+    });
+
+    if (alertItems.length > 0) {
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert low-stock';
+        const itemMessages = alertItems.map(key => {
+                const item = INVENTORY[key];
+                return `${key}${item.stock <= 0 ? ' (Out of Stock)' : ''}`;
+        });
+        alertDiv.innerHTML = `<strong>Low Stock Alert:</strong> The following items need reordering: ${itemMessages.join(', ')}.`;
+        alertsContainer.appendChild(alertDiv);
+    }
+}
+
+function finalizeOrder() {
+    const C = calc();
+    if (C.totalPacks === 0) {
+        showConfirmation("Please add items to the Order Composition before finalizing.", ()=>{});
+        return;
+    }
+
+    showConfirmation("This will calculate the order and deduct the required raw materials from your inventory. This action cannot be undone. Are you sure you want to proceed?", () => {
+        const consumption = {};
+        
+        // Tally consumption
+        C.S.order.forEach(orderItem => {
+            const sku = C.S.skus.find(s => s.sku === orderItem.sku);
+            if (!sku || orderItem.qty <= 0) return;
+
+            // Packaging
+            if(sku.innerPkgCost > 0) {
+                const key = `${sku.sku} Inner Pkg`;
+                consumption[key] = (consumption[key] || 0) + orderItem.qty;
+            }
+            if(sku.outerBoxCost > 0) {
+                const key = `${sku.sku} Outer Box`;
+                consumption[key] = (consumption[key] || 0) + orderItem.qty;
+            }
+            if(sku.displayBoxCost > 0) {
+                 const key = `${sku.sku} Display Box`;
+                consumption[key] = (consumption[key] || 0) + (orderItem.qty / sku.packsPerDisplay);
+            }
+             if(sku.shippingBoxCost > 0) {
+                const key = `${sku.sku} Shipping Box`;
+                consumption[key] = (consumption[key] || 0) + (orderItem.qty / sku.packsPerShipBox);
+            }
+
+            // Ingredients
+            const totalPills = orderItem.qty * sku.pills;
+            C.S.ing.forEach(ing => {
+                if (ing.name && ing.mg > 0) {
+                    consumption[ing.name] = (consumption[ing.name] || 0) + (totalPills * ing.mg);
+                }
+            });
+        });
+        
+        // Deduct from inventory
+        let itemsNotFound = [];
+        Object.keys(consumption).forEach(key => {
+            if (INVENTORY[key]) {
+                INVENTORY[key].stock -= consumption[key];
+            } else {
+                itemsNotFound.push(key);
+            }
+        });
+
+        saveInventory();
+        renderInventoryTable();
+        render(); // re-render to update dashboard
+
+        const statusChip = $('#status');
+        statusChip.textContent = 'Order Finalized & Inventory Updated';
+        statusChip.style.backgroundColor = 'lightgreen';
+        setTimeout(() => { statusChip.style.backgroundColor = ''; }, 1500);
+
+        if (itemsNotFound.length > 0) {
+            showConfirmation(`Warning: The following items were consumed but not found in your inventory list. Please sync inventory and set their stock levels:\n\n${itemsNotFound.join('\n')}`, ()=>{});
+        }
+    });
+}
+// ===== END: Inventory Logic =====
 </script>
 </body>
 </html>
-
-
-
